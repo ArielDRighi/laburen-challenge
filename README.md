@@ -36,12 +36,34 @@ laburen-challenge/
 └── README.md
 ```
 
+## ⚙️ Configuración Inicial
+
+### 1. Instalar dependencias
+```bash
+npm install
+```
+
+### 2. Configurar variables de entorno
+```bash
+# Copiar template de variables
+cp .env.example .dev.vars
+
+# Crear base de datos D1
+wrangler d1 create laburen-challenge-db
+
+# Copiar el database_id generado a wrangler.toml
+```
+
+### 3. Inicializar base de datos
+```bash
+npm run db:init
+```
+
+Para más detalles sobre configuración de secrets y variables de entorno, ver [SECRETS.md](SECRETS.md).
+
 ## 🚀 Comandos
 
 ```bash
-# Instalar dependencias
-npm install
-
 # Desarrollo local
 npm run dev
 
@@ -49,7 +71,7 @@ npm run dev
 npm run deploy
 
 # Ejecutar queries en D1
-wrangler d1 execute laburen-challenge-db --command "SELECT * FROM products"
+npm run db:query -- --command "SELECT * FROM products"
 ```
 
 ## 📝 Documentación
