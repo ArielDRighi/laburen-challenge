@@ -1,0 +1,14 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "laburen-challenge-mcp"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Cloudflare D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "laburen-challenge-db"
+database_id = "" # Se completa después de crear la DB con: wrangler d1 create laburen-challenge-db
+
+# Variables de entorno (opcional)
+# [vars]
+# ENVIRONMENT = "production"
