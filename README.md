@@ -39,11 +39,13 @@ laburen-challenge/
 ## ⚙️ Configuración Inicial
 
 ### 1. Instalar dependencias
+
 ```bash
 npm install
 ```
 
 ### 2. Configurar variables de entorno
+
 ```bash
 # Copiar template de variables
 cp .env.example .dev.vars
@@ -55,6 +57,7 @@ wrangler d1 create laburen-challenge-db
 ```
 
 ### 3. Inicializar base de datos
+
 ```bash
 npm run db:init
 ```

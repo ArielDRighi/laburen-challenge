@@ -5,6 +5,7 @@ Esta guía explica cómo configurar y gestionar variables de entorno y secrets p
 ## 📋 Variables de Entorno vs Bindings vs Secrets
 
 ### Variables de Entorno (.dev.vars)
+
 Para desarrollo local con `wrangler dev`:
 
 ```bash
@@ -16,6 +17,7 @@ cp .env.example .dev.vars
 ```
 
 ### Bindings (wrangler.toml)
+
 Los bindings conectan tu Worker con servicios de Cloudflare (D1, R2, KV, etc.):
 
 ```toml
@@ -26,17 +28,19 @@ database_id = "xxx"         # ID obtenido al crear la DB
 ```
 
 **Uso en código:**
+
 ```typescript
 export default {
   async fetch(request: Request, env: Env) {
     // env.DB está disponible automáticamente
     const result = await env.DB.prepare("SELECT * FROM products").all();
     return new Response(JSON.stringify(result));
-  }
-}
+  },
+};
 ```
 
 ### Secrets (Producción)
+
 Para datos sensibles que no deben estar en wrangler.toml:
 
 ```bash
@@ -50,16 +54,19 @@ wrangler secret put API_KEY
 ## 🚀 Setup Inicial
 
 ### 1. Instalar dependencias
+
 ```bash
 npm install
 ```
 
 ### 2. Crear base de datos D1
+
 ```bash
 wrangler d1 create laburen-challenge-db
 ```
 
 Esto retorna:
+
 ```
 ✅ Successfully created DB 'laburen-challenge-db'
 binding = "DB"
@@ -68,6 +75,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
 ### 3. Actualizar wrangler.toml
+
 Copia el `database_id` generado al archivo [wrangler.toml](wrangler.toml):
 
 ```toml
@@ -78,12 +86,14 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # 👈 Pegar aquí
 ```
 
 ### 4. Copiar variables de desarrollo
+
 ```bash
 cp .env.example .dev.vars
 # Editar .dev.vars con valores reales si es necesario
 ```
 
 ### 5. Inicializar el esquema de la base de datos
+
 ```bash
 npm run db:init
 # O: wrangler d1 execute laburen-challenge-db --file=./src/db/schema.sql
@@ -92,6 +102,7 @@ npm run db:init
 ## 🔍 Verificación
 
 ### Probar conexión a D1 local
+
 ```bash
 wrangler dev
 
@@ -100,6 +111,7 @@ curl http://localhost:8787/test
 ```
 
 ### Ejecutar queries manualmente
+
 ```bash
 # Query directo
 wrangler d1 execute laburen-challenge-db --command "SELECT * FROM products"
@@ -124,24 +136,27 @@ wrangler secret delete CHATWOOT_API_TOKEN
 ```
 
 **Acceder al secret en código:**
+
 ```typescript
 export default {
   async fetch(request: Request, env: Env) {
     const apiToken = env.CHATWOOT_API_TOKEN; // Disponible automáticamente
     // ...
-  }
-}
+  },
+};
 ```
 
 ## ⚠️ Seguridad
 
 **NUNCA commitees:**
+
 - `.env`
 - `.dev.vars`
 - `.env.local`
 - Cualquier archivo con valores reales de secrets
 
 **SÍ commitea:**
+
 - `.env.example` (template sin valores reales)
 - `wrangler.toml` (excepto si hay secrets - usar `wrangler secret` en su lugar)
 
