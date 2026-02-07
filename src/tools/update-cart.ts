@@ -3,10 +3,20 @@
  * Actualiza cantidades o elimina productos del carrito existente
  */
 
-import { Env } from "../types";
+import {
+  Env,
+  UpdateCartArgs,
+  CartData,
+  APIResponse,
+  DBProduct,
+  DBCart,
+  DBCartItemMinimal,
+  DBCartItemWithProduct,
+  CartItemData,
+} from "../types";
 import { successResponse, errorResponse } from "../utils/response";
 
-export async function updateCart(args: any, env: Env) {
+export async function updateCart(args: UpdateCartArgs, env: Env): Promise<APIResponse<CartData>> {
   try {
     // Validar parámetros requeridos
     const conversationId = args.conversation_id;
@@ -34,7 +44,7 @@ export async function updateCart(args: any, env: Env) {
 
     // Paso 1: Verificar que el carrito existe
     const getCartSql = `SELECT id FROM carts WHERE conversation_id = ?`;
-    const cartResult = await env.DB.prepare(getCartSql).bind(conversationId).first();
+    const cartResult = await env.DB.prepare(getCartSql).bind(conversationId).first<{ id: number }>();
 
     if (!cartResult) {
       return errorResponse("cart_not_found", `No existe un carrito para la conversación '${conversationId}'.`, {
@@ -48,8 +58,8 @@ export async function updateCart(args: any, env: Env) {
     // Paso 2: Obtener items actuales del carrito para validar
     const getCurrentItemsSql = `SELECT product_id, qty FROM cart_items WHERE cart_id = ?`;
     const currentItemsResult = await env.DB.prepare(getCurrentItemsSql).bind(cartId).all();
-    const currentItems = currentItemsResult.results || [];
-    const currentItemsMap = new Map();
+    const currentItems = (currentItemsResult.results as unknown as DBCartItemMinimal[]) || [];
+    const currentItemsMap = new Map<number, number>();
 
     for (const item of currentItems) {
       currentItemsMap.set(item.product_id, item.qty);
@@ -78,8 +88,8 @@ export async function updateCart(args: any, env: Env) {
       const productsResult = await env.DB.prepare(checkStockSql)
         .bind(...productIdsToCheck)
         .all();
-      const products = productsResult.results || [];
-      const productsMap = new Map();
+      const products = (productsResult.results as unknown as DBProduct[]) || [];
+      const productsMap = new Map<number, DBProduct>();
 
       for (const product of products) {
         productsMap.set(product.id, product);
@@ -90,7 +100,7 @@ export async function updateCart(args: any, env: Env) {
         const currentQty = currentItemsMap.get(update.product_id) || 0;
 
         if (update.qty > currentQty) {
-          const product: any = productsMap.get(update.product_id);
+          const product = productsMap.get(update.product_id);
 
           if (!product) {
             return errorResponse("product_not_found", `No existe un producto con ID ${update.product_id}.`, {
@@ -102,7 +112,7 @@ export async function updateCart(args: any, env: Env) {
             return errorResponse(
               "product_unavailable",
               `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' no está disponible actualmente.`,
-              { product_id: update.product_id },
+              { product_id: update.product_id }
             );
           }
 
@@ -110,7 +120,7 @@ export async function updateCart(args: any, env: Env) {
             return errorResponse(
               "insufficient_stock",
               `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' solo tiene ${product.cantidad_disponible} unidades disponibles. Solicitaste ${update.qty}.`,
-              { product_id: update.product_id, available: product.cantidad_disponible, requested: update.qty },
+              { product_id: update.product_id, available: product.cantidad_disponible, requested: update.qty }
             );
           }
         }
@@ -168,7 +178,7 @@ export async function updateCart(args: any, env: Env) {
     `;
 
     const cartItemsResult = await env.DB.prepare(getCartItemsSql).bind(cartId).all();
-    const cartItems = cartItemsResult.results || [];
+    const cartItems = (cartItemsResult.results as unknown as DBCartItemWithProduct[]) || [];
 
     // Si el carrito quedó vacío
     if (cartItems.length === 0) {
@@ -182,7 +192,7 @@ export async function updateCart(args: any, env: Env) {
 
     // Calcular total
     let total = 0;
-    const formattedItems = cartItems.map((item: any) => {
+    const formattedItems: CartItemData[] = cartItems.map((item: DBCartItemWithProduct) => {
       total += item.subtotal;
       return {
         product_id: item.product_id,
@@ -196,7 +206,7 @@ export async function updateCart(args: any, env: Env) {
     });
 
     console.log(
-      `[update_cart] Total: ${total}, Items actualizados: ${itemsUpdated}, Items eliminados: ${itemsRemoved}`,
+      `[update_cart] Total: ${total}, Items actualizados: ${itemsUpdated}, Items eliminados: ${itemsRemoved}`
     );
 
     // Construir mensaje descriptivo

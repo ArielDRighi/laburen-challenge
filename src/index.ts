@@ -3,7 +3,17 @@
  * Cloudflare Worker que expone herramientas MCP para el agente de IA
  */
 
-import { Env, MCPRequest, MCPTool } from "./types";
+import {
+  Env,
+  MCPRequest,
+  MCPTool,
+  ErrorResponse,
+  APIResponse,
+  ListProductsArgs,
+  GetProductArgs,
+  CreateCartArgs,
+  UpdateCartArgs,
+} from "./types";
 import { jsonResponse, toMCPResponse, errorResponse, handleError, executeTool, ERROR_CODES } from "./utils/response";
 import { listProducts } from "./tools/list-products";
 import { getProduct } from "./tools/get-product";
@@ -160,13 +170,13 @@ export default {
     // Ruta /mcp - Procesar llamadas MCP
     if (url.pathname === "/mcp" && request.method === "POST") {
       try {
-        const mcpRequest: MCPRequest = await request.json();
+        const mcpRequest = (await request.json()) as MCPRequest;
 
         // Validar request MCP
         if (!mcpRequest.params || !mcpRequest.params.name) {
           return jsonResponse(
             toMCPResponse(errorResponse(ERROR_CODES.INVALID_REQUEST, "Request MCP inválido. Se requiere params.name")),
-            400,
+            400
           );
         }
 
@@ -174,33 +184,33 @@ export default {
         const args = mcpRequest.params.arguments || {};
 
         // Ejecutar el tool correspondiente con manejo de errores robusto
-        let result;
+        let result: APIResponse<unknown>;
 
         switch (toolName) {
           case "list_products":
-            result = await executeTool(toolName, listProducts, args, env);
+            result = await executeTool(toolName, listProducts, args as ListProductsArgs, env);
             break;
 
           case "get_product":
-            result = await executeTool(toolName, getProduct, args, env);
+            result = await executeTool(toolName, getProduct, args as GetProductArgs, env);
             break;
 
           case "create_cart":
-            result = await executeTool(toolName, createCart, args, env);
+            result = await executeTool(toolName, createCart, args as CreateCartArgs, env);
             break;
 
           case "update_cart":
-            result = await executeTool(toolName, updateCart, args, env);
+            result = await executeTool(toolName, updateCart, args as UpdateCartArgs, env);
             break;
 
           default:
             result = errorResponse(ERROR_CODES.TOOL_NOT_FOUND, `La herramienta '${toolName}' no existe.`, {
               available_tools: MCP_TOOLS.map((t) => t.name),
-            });
+            }) as APIResponse<unknown>;
         }
 
         // Determinar código de estado HTTP según el tipo de error
-        const statusCode = result.success ? 200 : getStatusCodeFromError(result.error);
+        const statusCode = result.success ? 200 : getStatusCodeFromError((result as ErrorResponse).error);
 
         return jsonResponse(toMCPResponse(result), statusCode);
       } catch (error) {
@@ -216,7 +226,7 @@ export default {
         message: "Endpoint no encontrado",
         available_endpoints: ["/", "/tools", "/mcp"],
       },
-      404,
+      404
     );
   },
 };

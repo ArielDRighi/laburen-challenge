@@ -3,7 +3,7 @@
  * Helpers para crear respuestas consistentes
  */
 
-import { APIResponse, MCPResponse, Env } from "../types";
+import { APIResponse, MCPResponse, Env, ErrorResponse } from "../types";
 
 /**
  * Tipos de errores estándar del MCP Server
@@ -34,7 +34,7 @@ export const ERROR_CODES = {
 /**
  * Crear respuesta de éxito
  */
-export function successResponse(data: any): APIResponse {
+export function successResponse<T>(data: T): APIResponse<T> {
   return {
     success: true,
     data,
@@ -44,7 +44,7 @@ export function successResponse(data: any): APIResponse {
 /**
  * Crear respuesta de error
  */
-export function errorResponse(error: string, message: string, details?: any): APIResponse {
+export function errorResponse(error: string, message: string, details?: Record<string, unknown>): ErrorResponse {
   return {
     success: false,
     error,
@@ -71,7 +71,7 @@ export function toMCPResponse(response: APIResponse): MCPResponse {
 /**
  * Crear respuesta JSON HTTP
  */
-export function jsonResponse(data: any, status: number = 200): Response {
+export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -86,7 +86,7 @@ export function jsonResponse(data: any, status: number = 200): Response {
 /**
  * Manejar errores globales
  */
-export function handleError(error: unknown): APIResponse {
+export function handleError(error: unknown): ErrorResponse {
   console.error("[Global Error Handler]", error);
 
   if (error instanceof Error) {
@@ -104,12 +104,12 @@ export function handleError(error: unknown): APIResponse {
  * Wrapper para ejecutar tools con manejo de errores consistente
  * Captura cualquier error no manejado y lo convierte en una respuesta estructurada
  */
-export async function executeTool(
+export async function executeTool<TArgs, TData>(
   toolName: string,
-  toolFn: (args: any, env: Env) => Promise<APIResponse>,
-  args: any,
-  env: Env,
-): Promise<APIResponse> {
+  toolFn: (args: TArgs, env: Env) => Promise<APIResponse<TData>>,
+  args: TArgs,
+  env: Env
+): Promise<APIResponse<TData>> {
   const startTime = Date.now();
 
   try {
@@ -134,7 +134,7 @@ export async function executeTool(
 
     // Si el error ya es una APIResponse formateada, retornarla
     if (typeof error === "object" && error !== null && "success" in error) {
-      return error as APIResponse;
+      return error as APIResponse<TData>;
     }
 
     // Categorizar el error según el tipo
@@ -144,7 +144,7 @@ export async function executeTool(
         return errorResponse(
           ERROR_CODES.DATABASE_ERROR,
           "Error al acceder a la base de datos. Por favor, intenta nuevamente.",
-          { error: error.message },
+          { error: error.message }
         );
       }
 
@@ -155,6 +155,6 @@ export async function executeTool(
     }
 
     // Error genérico
-    return handleError(error);
+    return handleError(error) as APIResponse<TData>;
   }
 }

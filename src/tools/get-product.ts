@@ -3,10 +3,10 @@
  * Obtiene los detalles completos de un producto específico por su ID
  */
 
-import { Env } from "../types";
+import { Env, GetProductArgs, GetProductData, APIResponse, DBProduct } from "../types";
 import { successResponse, errorResponse } from "../utils/response";
 
-export async function getProduct(args: any, env: Env) {
+export async function getProduct(args: GetProductArgs, env: Env): Promise<APIResponse<GetProductData>> {
   try {
     // Validar parámetro requerido
     const productId = args.product_id;
@@ -40,7 +40,7 @@ export async function getProduct(args: any, env: Env) {
       WHERE id = ?
     `;
 
-    const result = await env.DB.prepare(sql).bind(productId).first();
+    const result = await env.DB.prepare(sql).bind(productId).first<DBProduct>();
 
     // Si no existe el producto
     if (!result) {
@@ -54,7 +54,7 @@ export async function getProduct(args: any, env: Env) {
     const disponible = result.disponible === "Sí";
 
     // Construir respuesta con formato especificado
-    const productData: any = {
+    const productData: GetProductData = {
       id: result.id,
       tipo_prenda: result.tipo_prenda,
       talla: result.talla,
@@ -75,7 +75,7 @@ export async function getProduct(args: any, env: Env) {
       productData.message = "Este producto no está disponible actualmente.";
     }
 
-    return successResponse(productData);
+    return successResponse<GetProductData>(productData);
   } catch (error) {
     console.error("[get_product] Error:", error);
     return errorResponse("database_error", "Error al consultar el producto en la base de datos.", {

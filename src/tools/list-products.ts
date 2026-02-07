@@ -3,10 +3,10 @@
  * Busca y lista productos disponibles en el catálogo
  */
 
-import { Env } from "../types";
+import { Env, ListProductsArgs, ListProductsData, APIResponse, DBProduct } from "../types";
 import { successResponse, errorResponse } from "../utils/response";
 
-export async function listProducts(args: any, env: Env) {
+export async function listProducts(args: ListProductsArgs, env: Env): Promise<APIResponse<ListProductsData>> {
   try {
     // Extraer y validar parámetros
     const query = args.query || null;
@@ -20,7 +20,7 @@ export async function listProducts(args: any, env: Env) {
     if (limit > 50) limit = 50;
 
     console.log(
-      `[list_products] Filtros: query=${query}, categoria=${categoria}, talla=${talla}, color=${color}, limit=${limit}`,
+      `[list_products] Filtros: query=${query}, categoria=${categoria}, talla=${talla}, color=${color}, limit=${limit}`
     );
 
     // Construir query SQL dinámica con prepared statement
@@ -65,18 +65,18 @@ export async function listProducts(args: any, env: Env) {
         talla, // 2x para talla
         color,
         color, // 2x para color exacto
-        limit, // límite
+        limit // límite
       )
       .all();
 
-    const products = result.results || [];
+    const products = (result.results as unknown as DBProduct[]) || [];
     const total = products.length;
 
     console.log(`[list_products] Encontrados: ${total} productos`);
 
     // Si no hay resultados
     if (total === 0) {
-      return successResponse({
+      return successResponse<ListProductsData>({
         products: [],
         total: 0,
         showing: 0,
@@ -85,7 +85,7 @@ export async function listProducts(args: any, env: Env) {
     }
 
     // Retornar productos encontrados
-    return successResponse({
+    return successResponse<ListProductsData>({
       products,
       total,
       showing: total,

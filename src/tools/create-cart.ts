@@ -3,10 +3,19 @@
  * Crea un nuevo carrito o actualiza uno existente agregando productos
  */
 
-import { Env } from "../types";
+import {
+  Env,
+  CreateCartArgs,
+  CartData,
+  APIResponse,
+  DBProduct,
+  DBCart,
+  DBCartItemWithProduct,
+  CartItemData,
+} from "../types";
 import { successResponse, errorResponse } from "../utils/response";
 
-export async function createCart(args: any, env: Env) {
+export async function createCart(args: CreateCartArgs, env: Env): Promise<APIResponse<CartData>> {
   try {
     // Validar parámetros requeridos
     const conversationId = args.conversation_id;
@@ -44,11 +53,11 @@ export async function createCart(args: any, env: Env) {
     const productsResult = await env.DB.prepare(checkProductsSql)
       .bind(...productIds)
       .all();
-    const products = productsResult.results || [];
+    const products = (productsResult.results as unknown as DBProduct[]) || [];
 
     // Verificar que todos los productos existan
     if (products.length !== productIds.length) {
-      const foundIds = products.map((p: any) => p.id);
+      const foundIds = products.map((p: DBProduct) => p.id);
       const missingIds = productIds.filter((id) => !foundIds.includes(id));
       return errorResponse("product_not_found", `No existen los productos con IDs: ${missingIds.join(", ")}.`, {
         missing_ids: missingIds,
@@ -56,20 +65,26 @@ export async function createCart(args: any, env: Env) {
     }
 
     // Crear mapa de productos para acceso rápido
-    const productMap = new Map();
+    const productMap = new Map<number, DBProduct>();
     for (const product of products) {
       productMap.set(product.id, product);
     }
 
     // Validar disponibilidad y stock
     for (const item of items) {
-      const product: any = productMap.get(item.product_id);
+      const product = productMap.get(item.product_id);
+
+      if (!product) {
+        return errorResponse("product_not_found", `No se encontró el producto con ID ${item.product_id}.`, {
+          product_id: item.product_id,
+        });
+      }
 
       if (product.disponible !== "Sí") {
         return errorResponse(
           "product_unavailable",
           `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' no está disponible actualmente.`,
-          { product_id: item.product_id },
+          { product_id: item.product_id }
         );
       }
 
@@ -77,7 +92,7 @@ export async function createCart(args: any, env: Env) {
         return errorResponse(
           "insufficient_stock",
           `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' solo tiene ${product.cantidad_disponible} unidades disponibles. Solicitaste ${item.qty}.`,
-          { product_id: item.product_id, available: product.cantidad_disponible, requested: item.qty },
+          { product_id: item.product_id, available: product.cantidad_disponible, requested: item.qty }
         );
       }
     }
@@ -93,7 +108,7 @@ export async function createCart(args: any, env: Env) {
       RETURNING id
     `;
 
-    const cartResult = await env.DB.prepare(upsertCartSql).bind(conversationId).first();
+    const cartResult = await env.DB.prepare(upsertCartSql).bind(conversationId).first<{ id: number }>();
     const cartId = cartResult?.id;
 
     if (!cartId) {
@@ -133,11 +148,11 @@ export async function createCart(args: any, env: Env) {
     `;
 
     const cartItemsResult = await env.DB.prepare(getCartSql).bind(cartId).all();
-    const cartItems = cartItemsResult.results || [];
+    const cartItems = (cartItemsResult.results as unknown as DBCartItemWithProduct[]) || [];
 
     // Calcular total
     let total = 0;
-    const formattedItems = cartItems.map((item: any) => {
+    const formattedItems: CartItemData[] = cartItems.map((item: DBCartItemWithProduct) => {
       total += item.subtotal;
       return {
         product_id: item.product_id,
