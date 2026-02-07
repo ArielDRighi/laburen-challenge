@@ -7,7 +7,7 @@ compatibility_date = "2024-12-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "laburen-challenge-db"
-database_id = "" # Se completa después de crear la DB con: wrangler d1 create laburen-challenge-db
+database_id = "91a940ad-ee7e-4fa8-b853-950e5e5880ae"
 
 # Variables de entorno (opcional)
 # [vars]
