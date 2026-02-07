@@ -30,7 +30,8 @@ laburen-challenge/
 │   ├── tools/                    # Implementación de herramientas MCP
 │   │   ├── list-products.ts      # Tool para buscar productos
 │   │   ├── get-product.ts        # Tool para obtener detalles de producto
-│   │   └── create-cart.ts        # Tool para crear/actualizar carritos
+│   │   ├── create-cart.ts        # Tool para crear/actualizar carritos
+│   │   └── update-cart.ts        # Tool para modificar/eliminar items
 │   ├── utils/
 │   │   └── response.ts           # Helpers para respuestas HTTP y MCP
 │   ├── db/

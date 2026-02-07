@@ -20,7 +20,8 @@ src/
 ├── tools/                # 🆕 Implementaciones modulares de herramientas MCP
 │   ├── list-products.ts  # Tool para buscar y listar productos
 │   ├── get-product.ts    # Tool para obtener detalle de un producto
-│   └── create-cart.ts    # Tool para crear/actualizar carritos
+│   ├── create-cart.ts    # Tool para crear/actualizar carritos
+│   └── update-cart.ts    # Tool para modificar/eliminar items del carrito
 ├── utils/
 │   └── response.ts       # Helpers para respuestas HTTP y MCP
 └── db/
@@ -174,7 +175,7 @@ Endpoint principal para invocar herramientas MCP.
 | `list_products` | ✅ Implementado | Busca y lista productos con filtros |
 | `get_product`   | ✅ Implementado | Obtiene detalle de un producto      |
 | `create_cart`   | ✅ Implementado | Crea o actualiza un carrito         |
-| `update_cart`   | 🔄 Tarea 4.5    | Modifica cantidades o elimina items |
+| `update_cart`   | ✅ Implementado | Modifica cantidades o elimina items |
 
 ## 🔍 Testing Local
 

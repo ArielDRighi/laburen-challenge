@@ -8,6 +8,7 @@ import { jsonResponse, toMCPResponse, errorResponse, successResponse, handleErro
 import { listProducts } from "./tools/list-products";
 import { getProduct } from "./tools/get-product";
 import { createCart } from "./tools/create-cart";
+import { updateCart } from "./tools/update-cart";
 
 /**
  * Definición de todas las herramientas MCP disponibles
@@ -220,18 +221,3 @@ export default {
     );
   },
 };
-
-/**
- * ========================================
- * IMPLEMENTACIÓN DE HERRAMIENTAS MCP
- * ========================================
- */
-
-/**
- * Tool: update_cart
- * Actualiza cantidades o elimina items del carrito
- */
-async function updateCart(args: any, env: Env) {
-  // TODO: Implementar en Tarea 4.5
-  return errorResponse("not_implemented", "La herramienta update_cart aún no está implementada.");
-}
