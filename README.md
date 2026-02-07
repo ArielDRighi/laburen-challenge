@@ -24,14 +24,22 @@ Este proyecto implementa un agente de IA conversacional capaz de:
 
 ```
 laburen-challenge/
-├── src/                  # Código del MCP Server
-│   ├── index.ts          # Entry point del Worker
+├── src/                          # Código del MCP Server (Cloudflare Worker)
+│   ├── index.ts                  # Entry point del Worker + definición de tools
+│   ├── types.ts                  # Tipos TypeScript (Env, MCPRequest, etc.)
+│   ├── utils/
+│   │   └── response.ts           # Helpers para respuestas HTTP y MCP
 │   ├── db/
-│   │   └── schema.sql    # Esquema de la DB
-│   ├── tools/            # Funciones/herramientas del MCP
-│   └── utils/            # Utilidades compartidas
-├── docs/                 # Documentación conceptual
-├── wrangler.toml         # Config de Cloudflare Worker
+│   │   ├── schema.sql            # Esquema de la base de datos
+│   │   └── seed.sql              # Datos de productos importados
+│   └── README.md                 # Documentación del Worker
+├── scripts/
+│   └── seed-products.js          # Script para importar productos desde XLSX
+├── docs/                         # Documentación conceptual
+│   ├── flujo-agente.md           # Diagramas de flujo e interacción
+│   ├── especificacion-mcp.md    # Documento conceptual del MCP
+│   └── specs-mcp-tools.md        # Especificaciones técnicas detalladas
+├── wrangler.toml                 # Configuración de Cloudflare Worker
 ├── package.json
 └── README.md
 ```
