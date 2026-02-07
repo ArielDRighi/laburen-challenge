@@ -15,8 +15,12 @@ Cloudflare Worker que implementa un servidor MCP (Model Context Protocol) para e
 
 ```
 src/
-├── index.ts              # Entry point del Worker, define endpoints y tools
+├── index.ts              # Entry point del Worker, define endpoints y routing
 ├── types.ts              # Tipos TypeScript (Env, MCPRequest, etc.)
+├── tools/                # 🆕 Implementaciones modulares de herramientas MCP
+│   ├── list-products.ts  # Tool para buscar y listar productos
+│   ├── get-product.ts    # Tool para obtener detalle de un producto
+│   └── create-cart.ts    # Tool para crear/actualizar carritos
 ├── utils/
 │   └── response.ts       # Helpers para respuestas HTTP y MCP
 └── db/
@@ -165,12 +169,12 @@ Endpoint principal para invocar herramientas MCP.
 
 ## 🛠️ Herramientas MCP Implementadas
 
-| Tool            | Estado                   | Descripción                         |
-| --------------- | ------------------------ | ----------------------------------- |
-| `list_products` | ✅ Implementado          | Busca y lista productos con filtros |
-| `get_product`   | ✅ Implementado          | Obtiene detalle de un producto      |
-| `create_cart`   | 🔄 Pendiente (Tarea 4.4) | Crea o actualiza un carrito         |
-| `update_cart`   | 🔄 Pendiente (Tarea 4.5) | Modifica cantidades o elimina items |
+| Tool            | Estado          | Descripción                         |
+| --------------- | --------------- | ----------------------------------- |
+| `list_products` | ✅ Implementado | Busca y lista productos con filtros |
+| `get_product`   | ✅ Implementado | Obtiene detalle de un producto      |
+| `create_cart`   | ✅ Implementado | Crea o actualiza un carrito         |
+| `update_cart`   | 🔄 Tarea 4.5    | Modifica cantidades o elimina items |
 
 ## 🔍 Testing Local
 
