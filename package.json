@@ -32,7 +32,7 @@
     "xlsx": "^0.18.5"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "agents": "^0.3.10",
     "ai": "^6.0.75",
     "zod": "^4.3.6"
