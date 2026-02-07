@@ -7,6 +7,9 @@ export interface Env {
   // D1 Database binding
   DB: D1Database;
 
+  // Durable Object para MCP Agent (SSE/Streamable HTTP)
+  MCP_OBJECT: DurableObjectNamespace;
+
   // Environment variables (opcional)
   ENVIRONMENT?: string;
 }

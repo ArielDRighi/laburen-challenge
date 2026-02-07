@@ -2,6 +2,16 @@
 name = "laburen-challenge-mcp"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Durable Object para transporte SSE/Streamable HTTP del MCP
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "LaburenMCP"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LaburenMCP"]
 
 # Cloudflare D1 Database binding
 [[d1_databases]]
