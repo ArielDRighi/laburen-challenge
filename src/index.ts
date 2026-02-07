@@ -4,7 +4,7 @@
  */
 
 import { Env, MCPRequest, MCPTool } from "./types";
-import { jsonResponse, toMCPResponse, errorResponse, successResponse, handleError } from "./utils/response";
+import { jsonResponse, toMCPResponse, errorResponse, handleError, executeTool, ERROR_CODES } from "./utils/response";
 import { listProducts } from "./tools/list-products";
 import { getProduct } from "./tools/get-product";
 import { createCart } from "./tools/create-cart";
@@ -165,7 +165,7 @@ export default {
         // Validar request MCP
         if (!mcpRequest.params || !mcpRequest.params.name) {
           return jsonResponse(
-            toMCPResponse(errorResponse("invalid_request", "Request MCP inválido. Se requiere params.name")),
+            toMCPResponse(errorResponse(ERROR_CODES.INVALID_REQUEST, "Request MCP inválido. Se requiere params.name")),
             400,
           );
         }
@@ -173,37 +173,36 @@ export default {
         const toolName = mcpRequest.params.name;
         const args = mcpRequest.params.arguments || {};
 
-        console.log(`[MCP] Invocando tool: ${toolName}`, JSON.stringify(args));
-
-        // Ejecutar el tool correspondiente
+        // Ejecutar el tool correspondiente con manejo de errores robusto
         let result;
 
         switch (toolName) {
           case "list_products":
-            result = await listProducts(args, env);
+            result = await executeTool(toolName, listProducts, args, env);
             break;
 
           case "get_product":
-            result = await getProduct(args, env);
+            result = await executeTool(toolName, getProduct, args, env);
             break;
 
           case "create_cart":
-            result = await createCart(args, env);
+            result = await executeTool(toolName, createCart, args, env);
             break;
 
           case "update_cart":
-            result = await updateCart(args, env);
+            result = await executeTool(toolName, updateCart, args, env);
             break;
 
           default:
-            result = errorResponse("tool_not_found", `La herramienta '${toolName}' no existe.`, {
+            result = errorResponse(ERROR_CODES.TOOL_NOT_FOUND, `La herramienta '${toolName}' no existe.`, {
               available_tools: MCP_TOOLS.map((t) => t.name),
             });
         }
 
-        console.log(`[MCP] Result: ${result.success ? "SUCCESS" : "ERROR"}`);
+        // Determinar código de estado HTTP según el tipo de error
+        const statusCode = result.success ? 200 : getStatusCodeFromError(result.error);
 
-        return jsonResponse(toMCPResponse(result));
+        return jsonResponse(toMCPResponse(result), statusCode);
       } catch (error) {
         console.error("[MCP] Error procesando request:", error);
         return jsonResponse(toMCPResponse(handleError(error)), 500);
@@ -221,3 +220,39 @@ export default {
     );
   },
 };
+
+/**
+ * Mapear códigos de error a status HTTP apropiados
+ */
+function getStatusCodeFromError(errorCode?: string): number {
+  if (!errorCode) return 500;
+
+  // Errores de validación y parámetros inválidos
+  if (
+    errorCode === ERROR_CODES.VALIDATION_ERROR ||
+    errorCode === ERROR_CODES.INVALID_REQUEST ||
+    errorCode === ERROR_CODES.INSUFFICIENT_STOCK ||
+    errorCode === ERROR_CODES.PRODUCT_UNAVAILABLE
+  ) {
+    return 400;
+  }
+
+  // Errores de recursos no encontrados
+  if (
+    errorCode === ERROR_CODES.NOT_FOUND ||
+    errorCode === ERROR_CODES.PRODUCT_NOT_FOUND ||
+    errorCode === ERROR_CODES.CART_NOT_FOUND ||
+    errorCode === ERROR_CODES.ITEM_NOT_FOUND ||
+    errorCode === ERROR_CODES.TOOL_NOT_FOUND
+  ) {
+    return 404;
+  }
+
+  // Errores no implementados
+  if (errorCode === ERROR_CODES.NOT_IMPLEMENTED) {
+    return 501;
+  }
+
+  // Errores de servidor (database, internal, unknown)
+  return 500;
+}

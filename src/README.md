@@ -241,6 +241,33 @@ Los logs aparecen automáticamente en la terminal donde ejecutaste `wrangler dev
 wrangler tail
 ```
 
+## �️ Manejo de Errores
+
+El MCP Server implementa un sistema robusto de error handling con tres niveles:
+
+### Niveles de Captura
+
+1. **Nivel Tool**: Cada tool captura y categoriza sus propios errores de dominio
+2. **Nivel Wrapper**: `executeTool()` captura errores no manejados y los categoriza automáticamente
+3. **Nivel Global**: El handler principal captura cualquier error no anticipado
+
+### Códigos de Error Estándar
+
+- **400 Bad Request**: `validation_error`, `invalid_request`, `insufficient_stock`, `product_unavailable`
+- **404 Not Found**: `not_found`, `product_not_found`, `cart_not_found`, `item_not_found`, `tool_not_found`
+- **500 Internal Server Error**: `database_error`, `internal_error`, `unknown_error`
+- **501 Not Implemented**: `not_implemented`
+
+### Características
+
+- ✅ Nunca explota - todos los errores se capturan
+- ✅ Mensajes descriptivos en español para el LLM
+- ✅ Logs estructurados con timing y contexto
+- ✅ Status HTTP apropiados según el tipo de error
+- ✅ Detalles adicionales para debugging cuando aplica
+
+Ver documentación completa: [docs/error-handling.md](../docs/error-handling.md)
+
 ## 🔒 Seguridad
 
 - **CORS:** El Worker permite requests desde cualquier origen (`Access-Control-Allow-Origin: *`)
@@ -254,6 +281,7 @@ wrangler tail
 - [Wrangler CLI Docs](https://developers.cloudflare.com/workers/wrangler/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [Especificaciones MCP Tools](../docs/specs-mcp-tools.md)
+- [Manejo de Errores](../docs/error-handling.md)
 
 ## 🐛 Troubleshooting
 
