@@ -168,7 +168,7 @@ Endpoint principal para invocar herramientas MCP.
 | Tool            | Estado                   | Descripción                         |
 | --------------- | ------------------------ | ----------------------------------- |
 | `list_products` | ✅ Implementado          | Busca y lista productos con filtros |
-| `get_product`   | 🔄 Pendiente (Tarea 4.3) | Obtiene detalle de un producto      |
+| `get_product`   | ✅ Implementado          | Obtiene detalle de un producto      |
 | `create_cart`   | 🔄 Pendiente (Tarea 4.4) | Crea o actualiza un carrito         |
 | `update_cart`   | 🔄 Pendiente (Tarea 4.5) | Modifica cantidades o elimina items |
 
