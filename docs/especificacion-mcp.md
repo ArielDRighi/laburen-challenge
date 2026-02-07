@@ -15,6 +15,7 @@ El MCP Server expone 5 herramientas principales que el agente puede invocar seg�
 **Propósito:** Buscar y filtrar productos disponibles en el catálogo.
 
 **Parámetros:**
+
 ```typescript
 {
   filters?: {
@@ -27,6 +28,7 @@ El MCP Server expone 5 herramientas principales que el agente puede invocar seg�
 ```
 
 **Respuesta:**
+
 ```json
 {
   "success": true,
@@ -44,14 +46,16 @@ El MCP Server expone 5 herramientas principales que el agente puede invocar seg�
 ```
 
 **Lógica:**
+
 - Si no hay filtros, retorna todos los productos
 - Aplica filtros con operador AND (todos deben cumplirse)
 - Solo retorna productos con stock > 0
 - Ordenados por nombre alfabéticamente
 
 **Query SQL:**
+
 ```sql
-SELECT * FROM products 
+SELECT * FROM products
 WHERE stock > 0
   AND (name LIKE ? OR ? IS NULL)
   AND (description LIKE ? OR ? IS NULL)
@@ -67,13 +71,15 @@ ORDER BY name ASC
 **Propósito:** Obtener información completa de un producto específico.
 
 **Parámetros:**
+
 ```typescript
 {
-  id: number;  // ID del producto (requerido)
+  id: number; // ID del producto (requerido)
 }
 ```
 
 **Respuesta:**
+
 ```json
 {
   "success": true,
@@ -88,6 +94,7 @@ ORDER BY name ASC
 ```
 
 **Errores:**
+
 ```json
 {
   "success": false,
@@ -96,6 +103,7 @@ ORDER BY name ASC
 ```
 
 **Query SQL:**
+
 ```sql
 SELECT * FROM products WHERE id = ?
 ```
@@ -107,17 +115,19 @@ SELECT * FROM products WHERE id = ?
 **Propósito:** Crear un nuevo carrito asociado a una conversación y agregar items iniciales.
 
 **Parámetros:**
+
 ```typescript
 {
-  conversation_id: string;  // ID único de la conversación (requerido)
+  conversation_id: string; // ID único de la conversación (requerido)
   items: Array<{
     product_id: number;
-    qty: number;            // Cantidad >= 1
-  }>;                       // Mínimo 1 item (requerido)
+    qty: number; // Cantidad >= 1
+  }>; // Mínimo 1 item (requerido)
 }
 ```
 
 **Respuesta:**
+
 ```json
 {
   "success": true,
@@ -136,11 +146,13 @@ SELECT * FROM products WHERE id = ?
 ```
 
 **Validaciones:**
+
 1. Verificar que no exista carrito para ese `conversation_id` (unicidad)
 2. Validar stock disponible para cada producto
 3. Rechazar si algún producto no existe o no tiene stock suficiente
 
 **Errores:**
+
 ```json
 {
   "success": false,
@@ -149,14 +161,15 @@ SELECT * FROM products WHERE id = ?
 ```
 
 **Transacción SQL:**
+
 ```sql
 BEGIN TRANSACTION;
   -- Verificar stock
   SELECT stock FROM products WHERE id = ?;
-  
+
   -- Crear carrito
   INSERT INTO carts (conversation_id) VALUES (?);
-  
+
   -- Agregar items
   INSERT INTO cart_items (cart_id, product_id, qty) VALUES (?, ?, ?);
 COMMIT;
@@ -169,15 +182,17 @@ COMMIT;
 **Propósito:** Modificar la cantidad de un producto en el carrito o eliminarlo.
 
 **Parámetros:**
+
 ```typescript
 {
-  conversation_id: string;  // ID de la conversación (requerido)
-  product_id: number;       // ID del producto a modificar (requerido)
-  qty: number;              // Nueva cantidad (0 = eliminar item)
+  conversation_id: string; // ID de la conversación (requerido)
+  product_id: number; // ID del producto a modificar (requerido)
+  qty: number; // Nueva cantidad (0 = eliminar item)
 }
 ```
 
 **Respuesta:**
+
 ```json
 {
   "success": true,
@@ -196,16 +211,19 @@ COMMIT;
 ```
 
 **Reglas:**
+
 - Si `qty = 0` → Eliminar el item del carrito
 - Si `qty > 0` → Validar stock y actualizar cantidad
 - Si el carrito queda vacío, mantenerlo (no eliminarlo automáticamente)
 
 **Validaciones:**
+
 1. Verificar que exista el carrito para ese `conversation_id`
 2. Verificar que el producto esté en el carrito
 3. Validar stock si qty > 0
 
 **Errores:**
+
 ```json
 {
   "success": false,
@@ -214,6 +232,7 @@ COMMIT;
 ```
 
 **Query SQL:**
+
 ```sql
 -- Si qty = 0
 DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?;
@@ -229,6 +248,7 @@ UPDATE cart_items SET qty = ? WHERE cart_id = ? AND product_id = ?;
 **Propósito:** Marcar conversación para derivación a agente humano (opcional - manejo por Laburen/Chatwoot).
 
 **Parámetros:**
+
 ```typescript
 {
   conversation_id: string;  // ID de la conversación (requerido)
@@ -237,6 +257,7 @@ UPDATE cart_items SET qty = ? WHERE cart_id = ? AND product_id = ?;
 ```
 
 **Respuesta:**
+
 ```json
 {
   "success": true,
@@ -266,6 +287,7 @@ El diseño sigue **Tercera Forma Normal (3NF)** para evitar redundancia y permit
 - **cart_items** → Many-to-many entre carts y products con cantidad
 
 **Ventajas:**
+
 - Cambios en precio/stock de productos no afectan carritos históricos
 - Integridad referencial con `FOREIGN KEY` previene inconsistencias
 - `ON DELETE CASCADE` limpia items automáticamente al borrar carrito
@@ -278,10 +300,7 @@ Las operaciones de carrito usan `BEGIN TRANSACTION` / `COMMIT` para garantizar a
 ```typescript
 // Ejemplo: create_cart debe ser atómico
 // O se crean el carrito + todos los items, o no se crea nada
-await env.DB.batch([
-  env.DB.prepare("INSERT INTO carts..."),
-  env.DB.prepare("INSERT INTO cart_items..."),
-]);
+await env.DB.batch([env.DB.prepare("INSERT INTO carts..."), env.DB.prepare("INSERT INTO cart_items...")]);
 ```
 
 Esto previene estados inconsistentes como "carrito sin items" o "items sin carrito".
@@ -303,6 +322,7 @@ Sin esto, el sistema podría "vender" productos que no existen, generando confli
 ## 📊 Diagrama de Arquitectura
 
 Para una visualización detallada de los flujos de interacción, consultar:
+
 - **[docs/flujo-agente.md](./flujo-agente.md)** - Diagramas de secuencia completos para cada herramienta
 
 ### Vista simplificada:
@@ -336,14 +356,18 @@ Chatwoot CRM ←→ Laburen Platform (LLM)
 Todas las herramientas retornan un formato consistente:
 
 **Success:**
+
 ```json
 {
   "success": true,
-  "data": { /* resultado específico */ }
+  "data": {
+    /* resultado específico */
+  }
 }
 ```
 
 **Error:**
+
 ```json
 {
   "success": false,

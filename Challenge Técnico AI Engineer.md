@@ -26,7 +26,7 @@
 | Día       | Foco principal                          | Tareas                                 |
 | --------- | --------------------------------------- | -------------------------------------- |
 | **Día 1** | Configuración inicial + Fase conceptual | 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2 |
-| **Día 2** | Base de datos + Specs + MCP core        | 3.1, 3.2, 3.3, 4.1, 4.2                |
+| **Día 2** | Base de datos + Specs + MCP core        | 3.0, 3.1, 3.2, 3.3, 4.1, 4.2           |
 | **Día 3** | MCP completo + Testing local            | 4.3, 4.4, 4.5, 4.6, 5.1                |
 | **Día 4** | Deploy + Integración Agente + WhatsApp  | 5.2, 6.1, 6.2, 6.3, 6.4                |
 | **Día 5** | Testing E2E + Fixes + Entrega           | 7.1, 7.2, 8.1                          |
@@ -278,30 +278,68 @@ CLOUDFLARE_D1_DATABASE_ID=<id-de-tu-base-d1>
 
 ---
 
-## 📋 ÉPICA 3 — Base de Datos
+## 📋 ÉPICA 3 — Cloudflare + Base de Datos
+
+### Tarea 3.0 · Crear cuenta en Cloudflare e instalar Wrangler CLI
+
+**🟢 Para Dummies:** Antes de poder crear la base de datos o subir código, necesitás una cuenta en Cloudflare (gratis) y instalar su herramienta de línea de comandos llamada Wrangler. Wrangler es como un control remoto para Cloudflare: desde tu terminal podés crear bases de datos, subir código, y administrar todo sin entrar a la web.
+
+**🔵 Justificación Técnica:** Cloudflare es un requisito explícito del challenge para el deploy del MCP server. Wrangler CLI es la herramienta oficial para interactuar con Cloudflare Workers y D1. Se necesita autenticación previa (`wrangler login`) antes de poder crear recursos como bases de datos D1. El plan gratuito de Cloudflare es suficiente para este challenge.
+
+**Pasos:**
+
+1. Crear cuenta en `https://dash.cloudflare.com/` (plan gratuito)
+2. Instalar Wrangler CLI: `npm install -g wrangler`
+3. Autenticarse: `wrangler login` (abre el navegador para OAuth)
+4. Verificar: `wrangler whoami` (debe mostrar tu cuenta)
+
+**Criterio de aceptación:** `wrangler whoami` muestra tu cuenta de Cloudflare correctamente.
+
+---
 
 ### Tarea 3.1 · Diseñar e implementar esquema de base de datos en Cloudflare D1
 
-**🟢 Para Dummies:** Necesitás crear las "tablas" donde se va a guardar la información. Pensá en tablas como hojas de Excel: una hoja para productos (nombre, precio, stock), otra para carritos de compra, y otra para los items dentro de cada carrito. Cloudflare D1 es una base de datos gratuita que vive en la nube de Cloudflare, así que no tenés que instalar nada.
+**🟢 Para Dummies:** Necesitás crear las "tablas" donde se va a guardar la información. Pensá en tablas como hojas de Excel: una hoja para productos (tipo de prenda, talla, color, precios por volumen), otra para carritos de compra, y otra para los items dentro de cada carrito. Cloudflare D1 es una base de datos gratuita que vive en la nube de Cloudflare.
 
-**🔵 Justificación Técnica:** Se utiliza Cloudflare D1 (SQLite edge database) por co-localización con el Worker, latencia mínima, y zero-cost para el tier gratuito. El esquema normalizado con tres tablas (products, carts, cart_items) respeta la 3NF, permite integridad referencial mediante foreign keys, y soporta extensibilidad futura (ej: agregar usuarios, estados de carrito, historial).
+**🔵 Justificación Técnica:** Se utiliza Cloudflare D1 (SQLite edge database) por co-localización con el Worker, latencia mínima, y zero-cost para el tier gratuito. El esquema fue diseñado a partir del análisis del archivo `products.xlsx` provisto, que contiene 100 productos de indumentaria con precios escalonados por volumen (50, 100 y 200 unidades), tallas, colores, y categorías. El esquema normalizado respeta la 3NF y soporta extensibilidad futura.
+
+**Datos reales del products.xlsx (100 filas, 11 columnas):**
+| Columna | Tipo | Ejemplo | Notas |
+|---|---|---|---|
+| ID | int | 1, 2, 3... | PK secuencial |
+| TIPO_PRENDA | text | Pantalón, Camiseta, Falda, Sudadera, Chaqueta | Nombre del producto |
+| TALLA | text | S, M, L, XL, XXL | 5 tallas |
+| COLOR | text | Verde, Blanco, Negro, Amarillo, Gris | Varios colores |
+| CANTIDAD_DISPONIBLE | int | 177, 33, 457... | Stock real |
+| PRECIO_50_U | int | 1058, 510... | Precio unitario para pedido de 50 unidades |
+| PRECIO_100_U | int | 1182, 975... | Precio unitario para pedido de 100 unidades |
+| PRECIO_200_U | int | 462, 739... | Precio unitario para pedido de 200 unidades |
+| DISPONIBLE | text | Sí / No | Flag de disponibilidad |
+| CATEGORÍA | text | Deportivo, Casual, Formal | 3 categorías |
+| DESCRIPCIÓN | text | "Ideal para uso diario." | Descripción corta |
 
 **Esquema SQL:**
 
 ```sql
--- Tabla de productos
+-- Tabla de productos (refleja la estructura real del XLSX)
 CREATE TABLE products (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  description TEXT,
-  price REAL NOT NULL,
-  stock INTEGER NOT NULL DEFAULT 0
+  id INTEGER PRIMARY KEY,
+  tipo_prenda TEXT NOT NULL,
+  talla TEXT NOT NULL,
+  color TEXT NOT NULL,
+  cantidad_disponible INTEGER NOT NULL DEFAULT 0,
+  precio_50_u INTEGER NOT NULL,
+  precio_100_u INTEGER NOT NULL,
+  precio_200_u INTEGER NOT NULL,
+  disponible TEXT NOT NULL DEFAULT 'Sí',
+  categoria TEXT NOT NULL,
+  descripcion TEXT
 );
 
 -- Tabla de carritos (uno por conversación)
 CREATE TABLE carts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  conversation_id TEXT UNIQUE NOT NULL,  -- ID de la conversación en Chatwoot/Laburen
+  conversation_id TEXT UNIQUE NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -313,41 +351,62 @@ CREATE TABLE cart_items (
   product_id INTEGER NOT NULL,
   qty INTEGER NOT NULL DEFAULT 1,
   FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE,
-  FOREIGN KEY (product_id) REFERENCES products(id)
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  UNIQUE(cart_id, product_id)
 );
 
 -- Índices para búsqueda de productos
-CREATE INDEX idx_products_name ON products(name);
+CREATE INDEX idx_products_tipo ON products(tipo_prenda);
+CREATE INDEX idx_products_categoria ON products(categoria);
+CREATE INDEX idx_products_talla ON products(talla);
+CREATE INDEX idx_products_color ON products(color);
 ```
 
 **Pasos:**
 
-1. Instalar Wrangler CLI (`npm install -g wrangler`)
-2. Crear la base D1: `wrangler d1 create laburen-challenge-db`
-3. Crear archivo `schema.sql` con las tablas
+1. Crear la base D1: `wrangler d1 create laburen-challenge-db`
+2. Anotar el `database_id` que devuelve el comando
+3. Crear archivo `src/db/schema.sql` con las tablas
 4. Ejecutar migración: `wrangler d1 execute laburen-challenge-db --file=./src/db/schema.sql`
+5. Verificar: `wrangler d1 execute laburen-challenge-db --command "SELECT name FROM sqlite_master WHERE type='table'"`
 
-**Criterio de aceptación:** Base de datos creada en D1 con las 3 tablas y esquema aplicado.
+**Criterio de aceptación:** Base de datos creada en D1 con las 3 tablas, índices, y constraint UNIQUE en cart_items.
 
 ---
 
 ### Tarea 3.2 · Importar productos desde el archivo XLSX a la base de datos
 
-**🟢 Para Dummies:** Te dan un archivo Excel con todos los productos (como un catálogo). Tenés que escribir un script que lea ese Excel y meta cada fila como un producto en tu base de datos. Es como copiar datos de una planilla a otra, pero automatizado.
+**🟢 Para Dummies:** Te dan un archivo Excel con 100 productos de ropa. Tenés que escribir un script que lea ese Excel y meta cada fila como un producto en tu base de datos. Es como copiar datos de una planilla a otra, pero automatizado.
 
 **🔵 Justificación Técnica:** El challenge provee `products.xlsx` como fuente de datos canónica. Se necesita un script de seed (población inicial) que parsee el archivo XLSX, transforme los datos al formato del esquema, y los inserte en D1. Esto se puede hacer con un script Node.js local usando la librería `xlsx` y la CLI de Wrangler para ejecutar los INSERTs contra D1 remotamente.
 
+**Mapeo de columnas XLSX → DB:**
+| XLSX | DB |
+|---|---|
+| ID | id |
+| TIPO_PRENDA | tipo_prenda |
+| TALLA | talla |
+| COLOR | color |
+| CANTIDAD_DISPONIBLE | cantidad_disponible |
+| PRECIO_50_U | precio_50_u |
+| PRECIO_100_U | precio_100_u |
+| PRECIO_200_U | precio_200_u |
+| DISPONIBLE | disponible |
+| CATEGORÍA | categoria |
+| DESCRIPCIÓN | descripcion |
+
 **Pasos:**
 
-1. Descargar `products.xlsx` del link provisto
-2. Crear script `seed.ts` que:
-   - Lee el archivo XLSX
-   - Mapea columnas a campos de la tabla `products`
-   - Genera sentencias INSERT
-3. Ejecutar seed contra D1: `wrangler d1 execute laburen-challenge-db --file=./seed.sql`
-4. Verificar con query: `SELECT COUNT(*) FROM products`
+1. Crear script `scripts/seed.ts` que:
+   - Lee el archivo XLSX con la librería `xlsx`
+   - Mapea columnas del Excel a campos de la tabla
+   - Genera sentencias INSERT escapando strings correctamente
+   - Produce un archivo `seed.sql`
+2. Ejecutar seed contra D1: `wrangler d1 execute laburen-challenge-db --file=./scripts/seed.sql`
+3. Verificar con query: `wrangler d1 execute laburen-challenge-db --command "SELECT COUNT(*) FROM products"`
+4. Verificar datos: `wrangler d1 execute laburen-challenge-db --command "SELECT * FROM products LIMIT 3"`
 
-**Criterio de aceptación:** Todos los productos del XLSX cargados en la tabla `products` de D1.
+**Criterio de aceptación:** 100 productos del XLSX cargados en la tabla `products` de D1 con todos los campos correctos.
 
 ---
 
@@ -367,7 +426,9 @@ CREATE INDEX idx_products_name ON products(name);
 
 ```json
 {
-  "query": "string | optional — texto para buscar en nombre/descripción",
+  "query": "string | optional — texto libre para buscar en tipo_prenda, color, categoría o descripción",
+  "categoria": "string | optional — filtro exacto: 'Deportivo', 'Casual', 'Formal'",
+  "talla": "string | optional — filtro exacto: 'S', 'M', 'L', 'XL', 'XXL'",
   "limit": "number | optional — default 10, max 50"
 }
 ```
@@ -375,13 +436,17 @@ CREATE INDEX idx_products_name ON products(name);
 **SQL:**
 
 ```sql
--- Sin filtro:
-SELECT id, name, description, price, stock FROM products LIMIT ?;
-
--- Con filtro:
-SELECT id, name, description, price, stock FROM products
-WHERE LOWER(name) LIKE LOWER('%' || ? || '%')
-   OR LOWER(description) LIKE LOWER('%' || ? || '%')
+-- Construcción dinámica de WHERE según filtros presentes
+SELECT id, tipo_prenda, talla, color, cantidad_disponible,
+       precio_50_u, precio_100_u, precio_200_u,
+       disponible, categoria, descripcion
+FROM products
+WHERE disponible = 'Sí'
+  AND (? IS NULL OR LOWER(tipo_prenda) LIKE LOWER('%' || ? || '%')
+       OR LOWER(color) LIKE LOWER('%' || ? || '%')
+       OR LOWER(descripcion) LIKE LOWER('%' || ? || '%'))
+  AND (? IS NULL OR categoria = ?)
+  AND (? IS NULL OR talla = ?)
 LIMIT ?;
 ```
 
@@ -389,7 +454,20 @@ LIMIT ?;
 
 ```json
 {
-  "products": [{ "id": 1, "name": "...", "description": "...", "price": 29.99, "stock": 10 }],
+  "products": [
+    {
+      "id": 1,
+      "tipo_prenda": "Pantalón",
+      "talla": "XXL",
+      "color": "Verde",
+      "cantidad_disponible": 177,
+      "precio_50_u": 1058,
+      "precio_100_u": 1182,
+      "precio_200_u": 462,
+      "categoria": "Deportivo",
+      "descripcion": "Ideal para uso diario."
+    }
+  ],
   "total": 15,
   "showing": 10
 }
@@ -414,13 +492,30 @@ LIMIT ?;
 **SQL:**
 
 ```sql
-SELECT id, name, description, price, stock FROM products WHERE id = ?;
+SELECT id, tipo_prenda, talla, color, cantidad_disponible,
+       precio_50_u, precio_100_u, precio_200_u,
+       disponible, categoria, descripcion
+FROM products WHERE id = ?;
 ```
 
 **Output (éxito):**
 
 ```json
-{ "id": 1, "name": "...", "description": "...", "price": 29.99, "stock": 10, "available": true }
+{
+  "id": 1,
+  "tipo_prenda": "Pantalón",
+  "talla": "XXL",
+  "color": "Verde",
+  "cantidad_disponible": 177,
+  "precios": {
+    "50_unidades": 1058,
+    "100_unidades": 1182,
+    "200_unidades": 462
+  },
+  "disponible": true,
+  "categoria": "Deportivo",
+  "descripcion": "Ideal para uso diario."
+}
 ```
 
 **Output (error):**
@@ -445,8 +540,9 @@ SELECT id, name, description, price, stock FROM products WHERE id = ?;
 **SQL (transaccional):**
 
 ```sql
--- 1. Verificar stock de cada producto
-SELECT id, name, price, stock FROM products WHERE id IN (?);
+-- 1. Verificar stock y disponibilidad de cada producto
+SELECT id, tipo_prenda, talla, color, cantidad_disponible, precio_50_u, disponible
+FROM products WHERE id IN (?);
 
 -- 2. Crear o recuperar carrito
 INSERT INTO carts (conversation_id) VALUES (?)
@@ -458,18 +554,31 @@ INSERT INTO cart_items (cart_id, product_id, qty) VALUES (?, ?, ?)
   ON CONFLICT (cart_id, product_id) DO UPDATE SET qty = cart_items.qty + excluded.qty;
 
 -- 4. Retornar carrito completo
-SELECT ci.product_id, p.name, p.price, ci.qty, (p.price * ci.qty) as subtotal
+SELECT ci.product_id, p.tipo_prenda, p.talla, p.color, p.precio_50_u, ci.qty,
+       (p.precio_50_u * ci.qty) as subtotal
 FROM cart_items ci JOIN products p ON ci.product_id = p.id
 WHERE ci.cart_id = ?;
 ```
+
+> **Nota sobre precios:** Para el MVP, el carrito usa `precio_50_u` como precio base. El agente puede informar al usuario sobre los descuentos por volumen (100u, 200u) pero el cálculo del carrito usa el precio estándar.
 
 **Output (éxito):**
 
 ```json
 {
   "cart_id": 1,
-  "items": [{ "product_id": 1, "name": "...", "price": 29.99, "qty": 2, "subtotal": 59.98 }],
-  "total": 59.98,
+  "items": [
+    {
+      "product_id": 1,
+      "tipo_prenda": "Pantalón",
+      "talla": "XXL",
+      "color": "Verde",
+      "precio_unitario": 1058,
+      "qty": 2,
+      "subtotal": 2116
+    }
+  ],
+  "total": 2116,
   "message": "Carrito actualizado."
 }
 ```
@@ -477,7 +586,13 @@ WHERE ci.cart_id = ?;
 **Output (error stock):**
 
 ```json
-{ "error": "insufficient_stock", "message": "El producto 'X' solo tiene 3 unidades disponibles." }
+{ "error": "insufficient_stock", "message": "El producto 'Pantalón XXL Verde' solo tiene 3 unidades disponibles." }
+```
+
+**Output (error disponibilidad):**
+
+```json
+{ "error": "product_unavailable", "message": "El producto 'Camiseta M Blanco' no está disponible actualmente." }
 ```
 
 ---
@@ -508,12 +623,6 @@ UPDATE cart_items SET qty = ? WHERE cart_id = ? AND product_id = ?;
 **Output:** Mismo formato que `create_cart`.
 
 ---
-
-**Nota sobre `cart_items`:** Para que el upsert de `create_cart` funcione, se necesita un índice UNIQUE compuesto:
-
-```sql
-CREATE UNIQUE INDEX idx_cart_items_unique ON cart_items(cart_id, product_id);
-```
 
 **Criterio de aceptación:** Documento de specs completo que pueda usarse directamente como prompt para implementación con AI coding assistant.
 
@@ -902,34 +1011,35 @@ curl -X POST http://localhost:8787 \
 
 ## 📊 Resumen de tareas
 
-| #   | Tarea                                         | Épica          | Prioridad     | Estimación |
-| --- | --------------------------------------------- | -------------- | ------------- | ---------- |
-| 1.1 | Crear cuenta Laburen + créditos               | Setup          | 🔴 Bloqueante | 30 min     |
-| 1.2 | Configurar Chatwoot en Laburen                | Setup          | 🔴 Bloqueante | 15 min     |
-| 1.3 | Obtener número WhatsApp + conectar            | Setup          | 🔴 Bloqueante | 1-2 hrs    |
-| 1.4 | Crear repositorio GitHub                      | Setup          | 🟡 Alta       | 30 min     |
-| 1.5 | **Crear CLAUDE.md (contexto AI assistant)**   | Setup          | 🟡 Alta       | 45 min     |
-| 1.6 | **Configurar variables de entorno y secrets** | Setup          | 🟡 Alta       | 30 min     |
-| 2.1 | Diagrama de flujo del agente                  | Conceptual     | 🟡 Alta       | 2 hrs      |
-| 2.2 | Documento conceptual con endpoints            | Conceptual     | 🟡 Alta       | 1.5 hrs    |
-| 3.1 | Esquema de DB en Cloudflare D1                | DB             | 🔴 Bloqueante | 1 hr       |
-| 3.2 | Importar productos XLSX a D1                  | DB             | 🔴 Bloqueante | 1.5 hrs    |
-| 3.3 | **Crear specs técnicas detalladas por tool**  | DB/Specs       | 🔴 Bloqueante | 2 hrs      |
-| 4.1 | Inicializar Worker + MCP                      | MCP Server     | 🔴 Bloqueante | 1.5 hrs    |
-| 4.2 | Tool: `list_products`                         | MCP Server     | 🔴 Bloqueante | 2 hrs      |
-| 4.3 | Tool: `get_product`                           | MCP Server     | 🔴 Bloqueante | 1 hr       |
-| 4.4 | Tool: `create_cart`                           | MCP Server     | 🔴 Bloqueante | 2.5 hrs    |
-| 4.5 | Tool: `update_cart` (Extra)                   | MCP Server     | 🟡 Alta       | 2 hrs      |
-| 4.6 | Manejo de errores global                      | MCP Server     | 🟡 Alta       | 1.5 hrs    |
-| 5.1 | **Testing local con wrangler dev**            | Testing/Deploy | 🔴 Bloqueante | 2 hrs      |
-| 5.2 | Deploy Worker en Cloudflare                   | Deploy         | 🔴 Bloqueante | 1 hr       |
-| 6.1 | Conectar MCP a Laburen                        | Integración    | 🔴 Bloqueante | 1 hr       |
-| 6.2 | System prompt del agente                      | Integración    | 🔴 Bloqueante | 2 hrs      |
-| 6.3 | Configurar etiquetas CRM                      | Integración    | 🟡 Alta       | 1 hr       |
-| 6.4 | Conectar WhatsApp al agente                   | Integración    | 🔴 Bloqueante | 1.5 hrs    |
-| 7.1 | Testing E2E completo                          | Testing        | 🔴 Bloqueante | 2 hrs      |
-| 7.2 | Fixes y ajustes de prompt                     | Testing        | 🟡 Alta       | 2-4 hrs    |
-| 8.1 | Preparar repo y entrega final                 | Entrega        | 🔴 Bloqueante | 1 hr       |
+| #   | Tarea                                           | Épica          | Prioridad     | Estimación |
+| --- | ----------------------------------------------- | -------------- | ------------- | ---------- |
+| 1.1 | Crear cuenta Laburen + créditos                 | Setup          | 🔴 Bloqueante | 30 min     |
+| 1.2 | Configurar Chatwoot en Laburen                  | Setup          | 🔴 Bloqueante | 15 min     |
+| 1.3 | Obtener número WhatsApp + conectar              | Setup          | 🔴 Bloqueante | 1-2 hrs    |
+| 1.4 | Crear repositorio GitHub                        | Setup          | 🟡 Alta       | 30 min     |
+| 1.5 | **Crear CLAUDE.md (contexto AI assistant)**     | Setup          | 🟡 Alta       | 45 min     |
+| 1.6 | **Configurar variables de entorno y secrets**   | Setup          | 🟡 Alta       | 30 min     |
+| 2.1 | Diagrama de flujo del agente                    | Conceptual     | 🟡 Alta       | 2 hrs      |
+| 2.2 | Documento conceptual con endpoints              | Conceptual     | 🟡 Alta       | 1.5 hrs    |
+| 3.0 | **Crear cuenta Cloudflare + instalar Wrangler** | DB/Setup       | 🔴 Bloqueante | 30 min     |
+| 3.1 | Esquema de DB en Cloudflare D1                  | DB             | 🔴 Bloqueante | 1 hr       |
+| 3.2 | Importar productos XLSX a D1                    | DB             | 🔴 Bloqueante | 1.5 hrs    |
+| 3.3 | **Crear specs técnicas detalladas por tool**    | DB/Specs       | 🔴 Bloqueante | 2 hrs      |
+| 4.1 | Inicializar Worker + MCP                        | MCP Server     | 🔴 Bloqueante | 1.5 hrs    |
+| 4.2 | Tool: `list_products`                           | MCP Server     | 🔴 Bloqueante | 2 hrs      |
+| 4.3 | Tool: `get_product`                             | MCP Server     | 🔴 Bloqueante | 1 hr       |
+| 4.4 | Tool: `create_cart`                             | MCP Server     | 🔴 Bloqueante | 2.5 hrs    |
+| 4.5 | Tool: `update_cart` (Extra)                     | MCP Server     | 🟡 Alta       | 2 hrs      |
+| 4.6 | Manejo de errores global                        | MCP Server     | 🟡 Alta       | 1.5 hrs    |
+| 5.1 | **Testing local con wrangler dev**              | Testing/Deploy | 🔴 Bloqueante | 2 hrs      |
+| 5.2 | Deploy Worker en Cloudflare                     | Deploy         | 🔴 Bloqueante | 1 hr       |
+| 6.1 | Conectar MCP a Laburen                          | Integración    | 🔴 Bloqueante | 1 hr       |
+| 6.2 | System prompt del agente                        | Integración    | 🔴 Bloqueante | 2 hrs      |
+| 6.3 | Configurar etiquetas CRM                        | Integración    | 🟡 Alta       | 1 hr       |
+| 6.4 | Conectar WhatsApp al agente                     | Integración    | 🔴 Bloqueante | 1.5 hrs    |
+| 7.1 | Testing E2E completo                            | Testing        | 🔴 Bloqueante | 2 hrs      |
+| 7.2 | Fixes y ajustes de prompt                       | Testing        | 🟡 Alta       | 2-4 hrs    |
+| 8.1 | Preparar repo y entrega final                   | Entrega        | 🔴 Bloqueante | 1 hr       |
 
 **Total estimado:** ~35-39 horas (5 días, ~7-8 hrs/día)
 
