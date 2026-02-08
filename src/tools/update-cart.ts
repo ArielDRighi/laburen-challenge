@@ -15,6 +15,7 @@ import {
   CartItemData,
 } from "../types";
 import { successResponse, errorResponse } from "../utils/response";
+import { calculateUnitPrice, calculateSubtotal } from "../utils/pricing";
 
 export async function updateCart(args: UpdateCartArgs, env: Env): Promise<APIResponse<CartData>> {
   try {
@@ -169,8 +170,10 @@ export async function updateCart(args: UpdateCartArgs, env: Env): Promise<APIRes
         p.talla,
         p.color,
         p.precio_50_u,
+        p.precio_100_u,
+        p.precio_200_u,
         ci.qty,
-        (p.precio_50_u * ci.qty) as subtotal
+        0 as subtotal
       FROM cart_items ci
       JOIN products p ON ci.product_id = p.id
       WHERE ci.cart_id = ?
@@ -190,18 +193,20 @@ export async function updateCart(args: UpdateCartArgs, env: Env): Promise<APIRes
       });
     }
 
-    // Calcular total
+    // Calcular total con precios escalonados según volumen
     let total = 0;
     const formattedItems: CartItemData[] = cartItems.map((item: DBCartItemWithProduct) => {
-      total += item.subtotal;
+      const unitPrice = calculateUnitPrice(item.qty, item.precio_50_u, item.precio_100_u, item.precio_200_u);
+      const subtotal = calculateSubtotal(item.qty, item.precio_50_u, item.precio_100_u, item.precio_200_u);
+      total += subtotal;
       return {
         product_id: item.product_id,
         tipo_prenda: item.tipo_prenda,
         talla: item.talla,
         color: item.color,
-        precio_unitario: item.precio_50_u,
+        precio_unitario: unitPrice,
         qty: item.qty,
-        subtotal: item.subtotal,
+        subtotal: subtotal,
       };
     });
 

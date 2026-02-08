@@ -133,6 +133,8 @@ export interface DBCartItemWithProduct {
   talla: string;
   color: string;
   precio_50_u: number;
+  precio_100_u: number;
+  precio_200_u: number;
   qty: number;
   subtotal: number;
 }
