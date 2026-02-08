@@ -49,6 +49,26 @@ laburen-challenge/
 └── README.md
 ```
 
+## ⚠️ Notas Técnicas
+
+### Pricing de Productos
+
+Durante la implementación detecté que **algunos productos en los datos provistos tienen precios con lógica inconsistente** entre los tiers de volumen. Por ejemplo:
+
+- **Producto ID 55** (Camisa L Blanco): precio_50_u = $551, precio_100_u = $1055, precio_200_u = $921
+  - El precio para 100 unidades es **más caro** que para 50 unidades
+  - El precio para 200 unidades cae entre ambos
+
+**Decisión de implementación:**
+
+- El MCP aplica **fielmente los precios especificados** en los datos provistos, sin asumir lógica de negocio que corrija estas inconsistencias
+- El bot está preparado para manejar estos casos: cuando un usuario consulta, el agente:
+  - Aplica correctamente el precio del tier correspondiente
+  - Explica profesionalmente la anomalía al usuario
+  - Ofrece alternativas (ajustar cantidad, escalar a humano, proceder igual)
+
+Esta decisión demuestra que el bot puede manejar edge cases reales donde los datos no son perfectos, sin hacer suposiciones incorrectas sobre reglas de negocio.
+
 ## ⚙️ Configuración Inicial
 
 ### 1. Instalar dependencias

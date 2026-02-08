@@ -1,17 +1,17 @@
-# 🤖 Flujo de Interacción del Agente - Laburen Challenge
+# Flujo de Interaccion del Agente - Laburen Challenge
 
-Este documento describe los flujos de interacción entre el usuario y el agente de ventas por WhatsApp, detallando cómo los diferentes componentes del sistema se comunican entre sí.
+Este documento describe los flujos de interaccion entre el usuario y el agente de ventas por WhatsApp, detallando como los diferentes componentes del sistema se comunican entre si.
 
-## 📐 Arquitectura General
+## Arquitectura General
 
-El sistema está compuesto por 6 componentes principales que se comunican en secuencia:
+El sistema esta compuesto por 6 componentes principales que se comunican en secuencia:
 
 ```mermaid
 graph LR
     A[Usuario] -->|WhatsApp| B[Meta Cloud API]
     B -->|Webhook| C[Chatwoot CRM]
     C -->|Mensaje| D[Laburen Platform]
-    D -->|MCP Call| E[MCP Server Workers]
+    D -->|MCP SSE/HTTP| E[MCP Server Workers]
     E -->|SQL Query| F[Cloudflare D1]
     F -->|Datos| E
     E -->|Respuesta| D
@@ -27,18 +27,18 @@ graph LR
 
 ### Componentes:
 
-1. **Usuario** - Cliente final que interactúa por WhatsApp
-2. **Meta Cloud API** - API oficial de WhatsApp para envío/recepción de mensajes
-3. **Chatwoot CRM** - Centro de control para gestión de conversaciones y etiquetado
-4. **Laburen Platform** - Orquestador que ejecuta el LLM y decide qué herramientas usar
-5. **MCP Server** - Cloudflare Worker que expone herramientas vía Model Context Protocol
-6. **Cloudflare D1** - Base de datos SQLite edge con productos y carritos
+1. **Usuario** - Cliente final que interactua por WhatsApp
+2. **Meta Cloud API** - API oficial de WhatsApp para envio/recepcion de mensajes
+3. **Chatwoot CRM** - Centro de control para gestion de conversaciones y etiquetado
+4. **Laburen Platform** - Orquestador que ejecuta el LLM y decide que herramientas usar
+5. **MCP Server** - Cloudflare Worker con Durable Objects (`McpAgent`), transporte Streamable HTTP + SSE
+6. **Cloudflare D1** - Base de datos SQLite edge con catalogo de indumentaria y carritos
 
 ---
 
-## 🔄 Flujo 1: Explorar Productos (`list_products`)
+## Flujo 1: Explorar Productos (`list_products`)
 
-El usuario solicita ver productos disponibles, el agente consulta la base de datos y retorna resultados.
+El usuario solicita ver productos disponibles. El agente busca en el catalogo con filtros opcionales.
 
 ```mermaid
 sequenceDiagram
@@ -49,41 +49,39 @@ sequenceDiagram
     participant M as MCP Server
     participant D as D1 Database
 
-    U->>W: "Hola, quiero ver remeras"
+    U->>W: "Quiero ver camisetas deportivas"
     W->>C: Mensaje recibido
-    C->>L: Conversión a texto + conversation_id
+    C->>L: Texto + conversation_id
 
-    Note over L: LLM analiza intent:<br/>Necesita listar productos
+    Note over L: LLM analiza intent:<br/>Buscar productos con filtros
 
-    L->>M: MCP Call: list_products({ category: "remeras" })
-    M->>D: SELECT * FROM products WHERE name LIKE '%remeras%'
-    D-->>M: [{ id: 1, name: "Remera Negra", price: 5000 }...]
-    M-->>L: JSON con lista de productos
+    L->>M: MCP Call: list_products({<br/>  query: "camisetas",<br/>  categoria: "Deportivo"<br/>})
+    M->>D: SELECT * FROM products<br/>WHERE disponible='Si'<br/>AND LOWER(tipo_prenda) LIKE '%camisetas%'<br/>AND categoria='Deportivo'<br/>ORDER BY tipo_prenda, talla<br/>LIMIT 10
+    D-->>M: [{ id: 5, tipo_prenda: "Camiseta", talla: "M", color: "Negro", ... }]
+    M-->>L: { success: true, data: { products: [...], total: 3, showing: 3 } }
 
     Note over L: LLM formatea respuesta<br/>en lenguaje natural
 
-    L-->>C: "Encontré estas remeras: 1) Remera Negra $5000..."
-    C-->>W: Envía respuesta
+    L-->>C: "Encontre 3 camisetas deportivas: 1) Camiseta Negra M $5000..."
+    C-->>W: Envia respuesta
     W-->>U: Mensaje en WhatsApp
 ```
 
-**Parámetros:**
+**Parametros disponibles:**
 
-- `filters` (opcional): `{ name?, description?, min_price?, max_price? }`
-
-**Respuesta:**
-
-```json
-{
-  "products": [{ "id": 1, "name": "Remera Negra", "price": 5000, "stock": 10 }]
-}
-```
+| Parametro   | Tipo              | Descripcion                                 |
+| ----------- | ----------------- | ------------------------------------------- |
+| `query`     | string (opcional) | Busqueda en tipo_prenda, color, descripcion |
+| `categoria` | enum (opcional)   | "Deportivo", "Casual", "Formal"             |
+| `talla`     | enum (opcional)   | "S", "M", "L", "XL", "XXL"                  |
+| `color`     | string (opcional) | Color exacto (case-insensitive)             |
+| `limit`     | number (opcional) | Max resultados (default 10, max 50)         |
 
 ---
 
-## 🔍 Flujo 2: Ver Detalle de Producto (`get_product`)
+## Flujo 2: Ver Detalle de Producto (`get_product`)
 
-El usuario solicita información detallada sobre un producto específico.
+El usuario solicita informacion detallada de un producto especifico. La respuesta incluye precios escalonados por volumen.
 
 ```mermaid
 sequenceDiagram
@@ -94,45 +92,31 @@ sequenceDiagram
     participant M as MCP Server
     participant D as D1 Database
 
-    U->>W: "Dame más info de la remera negra"
+    U->>W: "Dame mas info de la camiseta negra"
     W->>C: Mensaje recibido
     C->>L: Texto + conversation_id
 
-    Note over L: LLM identifica referencia<br/>a producto ID 1
+    Note over L: LLM identifica referencia<br/>a producto ID 5
 
-    L->>M: MCP Call: get_product({ id: 1 })
-    M->>D: SELECT * FROM products WHERE id = 1
-    D-->>M: { id: 1, name: "Remera Negra", description: "...", price: 5000, stock: 10 }
-    M-->>L: JSON con detalles completos
+    L->>M: MCP Call: get_product({ product_id: 5 })
+    M->>D: SELECT * FROM products WHERE id = 5
+    D-->>M: { id: 5, tipo_prenda: "Camiseta", talla: "M",<br/>color: "Negro", precio_50_u: 5000,<br/>precio_100_u: 4500, precio_200_u: 4000, ... }
+    M-->>L: { success: true, data: {<br/>  id: 5, tipo_prenda: "Camiseta",<br/>  precios: { 50_unidades: 5000, 100_unidades: 4500, 200_unidades: 4000 },<br/>  disponible: true, ... } }
 
-    Note over L: LLM genera respuesta<br/>descriptiva y natural
+    Note over L: LLM genera respuesta<br/>descriptiva con precios
 
-    L-->>C: "La Remera Negra cuesta $5000. Es de algodón..."
-    C-->>W: Envía respuesta
+    L-->>C: "La Camiseta Negra talla M esta disponible.<br/>Precios: 50u $5000, 100u $4500, 200u $4000 c/u"
+    C-->>W: Envia respuesta
     W-->>U: Mensaje en WhatsApp
 ```
 
-**Parámetros:**
-
-- `id` (requerido): ID del producto
-
-**Respuesta:**
-
-```json
-{
-  "id": 1,
-  "name": "Remera Negra",
-  "description": "Remera 100% algodón",
-  "price": 5000,
-  "stock": 10
-}
-```
+**Nota:** `get_product` convierte `disponible` de "Si"/"No" a booleano y agrupa los 3 precios en un objeto `precios` para que el LLM los presente claramente.
 
 ---
 
-## 🛒 Flujo 3: Crear Carrito (`create_cart`)
+## Flujo 3: Crear Carrito (`create_cart`)
 
-El usuario expresa intención de compra. El agente crea un carrito vinculado a la conversación.
+El usuario expresa intencion de compra. El agente crea un carrito o agrega productos a uno existente (UPSERT).
 
 ```mermaid
 sequenceDiagram
@@ -143,59 +127,73 @@ sequenceDiagram
     participant M as MCP Server
     participant D as D1 Database
 
-    U->>W: "Quiero 2 remeras negras"
+    U->>W: "Quiero 50 camisetas negras"
     W->>C: Mensaje recibido
     C->>L: Texto + conversation_id
 
-    Note over L: Intent: crear/actualizar carrito<br/>producto_id: 1, qty: 2
+    Note over L: Intent: agregar al carrito<br/>product_id: 5, qty: 50
 
-    L->>M: MCP Call: create_cart({ conversation_id, items: [{ product_id: 1, qty: 2 }] })
+    L->>M: MCP Call: create_cart({<br/>  conversation_id: "conv_123",<br/>  items: [{ product_id: 5, qty: 50 }]<br/>})
 
-    M->>D: BEGIN TRANSACTION
-    M->>D: SELECT stock FROM products WHERE id = 1
-    D-->>M: stock: 10 ✅
+    Note over M: Paso 1a: Validar productos
 
-    M->>D: INSERT INTO carts (conversation_id) VALUES (?)
-    M->>D: INSERT INTO cart_items (cart_id, product_id, qty) VALUES (?, 1, 2)
-    M->>D: COMMIT
+    M->>D: SELECT id, tipo_prenda, cantidad_disponible, disponible<br/>FROM products WHERE id IN (5)
+    D-->>M: { id: 5, cantidad_disponible: 150, disponible: "Si" }
 
+    Note over M: Paso 1b: Crear/recuperar carrito
+
+    M->>D: INSERT INTO carts (conversation_id)<br/>VALUES ('conv_123')<br/>ON CONFLICT (conversation_id)<br/>DO UPDATE SET updated_at = CURRENT_TIMESTAMP<br/>RETURNING id
     D-->>M: cart_id: 42
-    M-->>L: { cart_id: 42, items: [{ product_id: 1, qty: 2, subtotal: 10000 }], total: 10000 }
 
-    Note over L: LLM confirma acción<br/>y aplica etiquetas en CRM
+    Note over M: Paso 1c: Verificar cantidad actual<br/>en carrito (para stock acumulado)
 
-    L->>C: Aplicar etiquetas: "cart_active", "intent_purchase"
-    L-->>C: "Perfecto! Agregué 2 Remeras Negras a tu carrito. Total: $10.000"
-    C-->>W: Envía respuesta
+    M->>D: SELECT product_id, qty<br/>FROM cart_items<br/>WHERE cart_id = 42 AND product_id = 5
+    D-->>M: No existe (primera vez) → qty_actual = 0
+
+    Note over M: Validar stock acumulado:<br/>0 + 50 = 50 <= 150 ✅ OK
+
+    Note over M: Paso 2: UPSERT items<br/>(suma qty si ya existe)
+
+    M->>D: INSERT INTO cart_items (cart_id, product_id, qty)<br/>VALUES (42, 5, 50)<br/>ON CONFLICT (cart_id, product_id)<br/>DO UPDATE SET qty = qty + 50
+
+    Note over M: Paso 3: Obtener carrito completo<br/>con precios escalonados
+
+    M->>D: SELECT ci.*, p.* FROM cart_items ci<br/>JOIN products p ON ci.product_id = p.id<br/>WHERE ci.cart_id = 42
+    D-->>M: Items con precios
+
+    Note over M: qty=50 → precio_50_u ($5000)<br/>subtotal = 50 * 5000 = $250.000
+
+    M-->>L: { success: true, data: {<br/>  cart_id: 42,<br/>  items: [{ product_id: 5, precio_unitario: 5000, qty: 50, subtotal: 250000 }],<br/>  total: 250000 } }
+
+    L-->>C: "Agregue 50 Camisetas Negras M a tu carrito.<br/>Precio: $5.000 c/u. Total: $250.000"
+    C-->>W: Envia respuesta
     W-->>U: Mensaje en WhatsApp
 ```
 
-**Parámetros:**
+**Comportamiento UPSERT:**
 
-- `conversation_id` (requerido): ID único de la conversación
-- `items` (requerido): Array de `{ product_id, qty }`
+- Si no existe carrito para ese `conversation_id` → crea uno nuevo
+- Si ya existe → reutiliza el carrito existente
+- **Si el producto ya está en el carrito → SUMA las cantidades** (ej: 50 + 50 = 100)
+- **Validación de stock:** Considera la cantidad **acumulada** (actual en carrito + nueva solicitada), no solo la nueva
+- Si el producto ya esta en el carrito → **suma** las cantidades
 
-**Validaciones:**
+**Precios escalonados aplicados:**
 
-- Verificar stock disponible antes de agregar
-- Si no hay stock, retornar error descriptivo
-
-**Respuesta:**
-
-```json
-{
-  "cart_id": 42,
-  "items": [{ "product_id": 1, "qty": 2, "subtotal": 10000 }],
-  "total": 10000
-}
-```
+| Cantidad en carrito | Precio unitario aplicado |
+| ------------------- | ------------------------ |
+| qty < 100           | `precio_50_u`            |
+| 100 <= qty < 200    | `precio_100_u`           |
+| qty >= 200          | `precio_200_u`           |
 
 ---
 
-## ✏️ Flujo 4: Actualizar Carrito (`update_cart`)
+## Flujo 4: Actualizar Carrito (`update_cart`)
 
 El usuario modifica cantidades o elimina productos del carrito.
 
+### Caso A: Modificar cantidad
+
 ```mermaid
 sequenceDiagram
     participant U as Usuario
@@ -205,57 +203,75 @@ sequenceDiagram
     participant M as MCP Server
     participant D as D1 Database
 
-    U->>W: "Cambia a 3 remeras"
+    U->>W: "Cambia a 100 camisetas"
     W->>C: Mensaje recibido
     C->>L: Texto + conversation_id
 
-    Note over L: Intent: actualizar qty<br/>producto_id: 1, nueva qty: 3
+    Note over L: Intent: actualizar qty<br/>product_id: 5, nueva qty: 100
 
-    L->>M: MCP Call: update_cart({ conversation_id, product_id: 1, qty: 3 })
+    L->>M: MCP Call: update_cart({<br/>  conversation_id: "conv_123",<br/>  updates: [{ product_id: 5, qty: 100 }]<br/>})
 
-    M->>D: SELECT cart_id FROM carts WHERE conversation_id = ?
+    M->>D: SELECT id FROM carts WHERE conversation_id = 'conv_123'
     D-->>M: cart_id: 42
 
-    M->>D: SELECT stock FROM products WHERE id = 1
-    D-->>M: stock: 10 ✅
+    M->>D: SELECT product_id, qty FROM cart_items WHERE cart_id = 42
+    D-->>M: [{ product_id: 5, qty: 50 }]
 
-    M->>D: UPDATE cart_items SET qty = 3 WHERE cart_id = 42 AND product_id = 1
-    D-->>M: Actualizado
+    Note over M: qty sube de 50 a 100<br/>→ Validar stock
 
-    M-->>L: { success: true, new_total: 15000 }
+    M->>D: SELECT id, cantidad_disponible, disponible<br/>FROM products WHERE id IN (5)
+    D-->>M: { cantidad_disponible: 150, disponible: "Si" }
 
-    L-->>C: "Listo! Ahora tienes 3 remeras. Nuevo total: $15.000"
-    C-->>W: Envía respuesta
+    M->>D: UPDATE cart_items SET qty = 100<br/>WHERE cart_id = 42 AND product_id = 5
+
+    M->>D: UPDATE carts SET updated_at = CURRENT_TIMESTAMP WHERE id = 42
+
+    Note over M: qty=100 → precio_100_u ($4500)<br/>subtotal = 100 * 4500 = $450.000
+
+    M-->>L: { success: true, data: {<br/>  cart_id: 42, items: [...], total: 450000,<br/>  message: "1 producto(s) actualizado(s)" } }
+
+    L-->>C: "Actualizado a 100 camisetas. Precio baja a $4.500 c/u.<br/>Nuevo total: $450.000"
+    C-->>W: Envia respuesta
     W-->>U: Mensaje en WhatsApp
 ```
 
-**Parámetros:**
+### Caso B: Eliminar item (qty = 0)
 
-- `conversation_id` (requerido): ID de la conversación
-- `product_id` (requerido): ID del producto a modificar
-- `qty` (requerido): Nueva cantidad (si es 0, elimina el item)
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant L as Laburen (LLM)
+    participant M as MCP Server
+    participant D as D1 Database
 
-**Reglas:**
+    U->>L: "Quita las camisetas del carrito"
 
-- Si `qty = 0` → Eliminar el item del carrito
-- Validar stock disponible
-- Si el carrito queda vacío, considerar eliminar el carrito
+    L->>M: MCP Call: update_cart({<br/>  conversation_id: "conv_123",<br/>  updates: [{ product_id: 5, qty: 0 }]<br/>})
 
-**Respuesta:**
+    M->>D: SELECT id FROM carts WHERE conversation_id = 'conv_123'
+    D-->>M: cart_id: 42
 
-```json
-{
-  "success": true,
-  "new_total": 15000,
-  "items": [{ "product_id": 1, "qty": 3, "subtotal": 15000 }]
-}
+    Note over M: qty = 0 → DELETE<br/>(no valida stock)
+
+    M->>D: DELETE FROM cart_items<br/>WHERE cart_id = 42 AND product_id = 5
+
+    M-->>L: { success: true, data: {<br/>  cart_id: 42, items: [], total: 0,<br/>  message: "El carrito esta vacio." } }
+
+    L-->>U: "Listo, quite las camisetas. Tu carrito esta vacio."
 ```
+
+**Reglas de validacion:**
+
+- Solo valida stock cuando se **incrementa** qty (optimizacion)
+- `qty = 0` elimina el item sin validacion
+- Si el producto no esta en el carrito, retorna error `item_not_found`
+- El carrito se mantiene aunque quede vacio
 
 ---
 
-## 👤 Flujo 5: Derivar a Humano (`handoff_to_human`)
+## Flujo 5: Derivacion a Humano
 
-El agente detecta que no puede resolver la consulta y deriva a un agente humano.
+El agente detecta que no puede resolver la consulta y la derivacion es manejada por Laburen Platform a traves de Chatwoot.
 
 ```mermaid
 sequenceDiagram
@@ -265,80 +281,93 @@ sequenceDiagram
     participant L as Laburen (LLM)
     participant H as Agente Humano
 
-    U->>W: "Quiero cambiar una remera que compré ayer"
+    U->>W: "Quiero cambiar una remera que compre ayer"
     W->>C: Mensaje recibido
     C->>L: Texto + conversation_id
 
-    Note over L: LLM detecta:<br/>- Tema fuera de scope (devoluciones)<br/>- No hay herramientas para resolver
+    Note over L: LLM detecta:<br/>- Tema fuera de scope (devoluciones)<br/>- No hay herramientas MCP para esto
 
-    L->>C: Aplicar etiquetas: "handoff", "returns", "needs_human"
-    L->>C: Cambiar estado conversación: "open" → "waiting_agent"
-    L-->>C: "Entiendo que quieres hacer un cambio. Un agente humano te va a ayudar en breve."
+    L->>C: Aplicar etiquetas: "handoff", "returns"
+    L->>C: Cambiar estado: "open" → "waiting_agent"
+    L-->>C: "Entiendo que quieres hacer un cambio.<br/>Un agente humano te va a ayudar en breve."
 
-    C->>H: Notificación: Nueva conversación requiere atención
+    C->>H: Notificacion: Nueva conversacion requiere atencion
     Note over H: Agente humano ve el contexto<br/>completo en Chatwoot
 
-    C-->>W: Mensaje de transición
+    C-->>W: Mensaje de transicion
     W-->>U: Mensaje en WhatsApp
 
-    Note over U,H: A partir de aquí, el agente<br/>humano continúa la conversación
+    Note over U,H: A partir de aqui, el agente<br/>humano continua la conversacion
 ```
 
-**Triggers para handoff:**
+**Nota:** La derivacion a humano es manejada directamente por Laburen Platform y Chatwoot, sin necesidad de un tool MCP dedicado. El LLM detecta cuando no puede resolver y aplica etiquetas/cambios de estado en Chatwoot.
 
-- Usuario solicita hablar con humano explícitamente
+**Triggers para derivacion:**
+
+- Usuario solicita hablar con humano explicitamente
 - Consultas sobre devoluciones, cambios, reclamos
-- El agente no puede responder después de 2 intentos
-- Usuario expresa frustración o insatisfacción
-- Temas de facturación o pagos específicos
-
-**Acciones en Chatwoot:**
-
-1. Aplicar etiquetas: `handoff`, `needs_human`, categoría del tema
-2. Cambiar estado de la conversación
-3. Agregar nota interna con contexto (productos vistos, carrito activo, etc.)
-4. Notificar a agentes humanos disponibles
+- El agente no puede responder la consulta
+- Usuario expresa frustracion o insatisfaccion
+- Temas de facturacion o pagos especificos
 
 ---
 
-## 🎯 Resumen de Herramientas MCP
+## Resumen de Herramientas MCP
 
-| Herramienta        | Propósito           | Input Principal                        | Output             |
-| ------------------ | ------------------- | -------------------------------------- | ------------------ |
-| `list_products`    | Buscar productos    | `filters` (opcional)                   | Array de productos |
-| `get_product`      | Detalle de producto | `id`                                   | Objeto producto    |
-| `create_cart`      | Crear carrito nuevo | `conversation_id`, `items`             | Carrito con total  |
-| `update_cart`      | Modificar carrito   | `conversation_id`, `product_id`, `qty` | Nuevo total        |
-| `handoff_to_human` | Derivar a humano    | `conversation_id`, `reason`            | Confirmación       |
-
----
-
-## 🔐 Consideraciones de Seguridad
-
-1. **Validación de Stock**: Siempre verificar disponibilidad antes de agregar/actualizar items
-2. **Isolation por Conversación**: Cada `conversation_id` tiene su propio carrito
-3. **Transacciones Atómicas**: Uso de `BEGIN/COMMIT` en operaciones de carrito
-4. **Error Handling**: Respuestas descriptivas sin exponer detalles de DB
-5. **Rate Limiting**: (Implementar si es necesario) Límite de requests por conversación
+| Herramienta     | Proposito                | Input Principal                                                    | Output                                 |
+| --------------- | ------------------------ | ------------------------------------------------------------------ | -------------------------------------- |
+| `list_products` | Buscar productos         | `query`, `categoria`, `talla`, `color`, `limit` (todos opcionales) | Array de productos con stock y precios |
+| `get_product`   | Detalle de producto      | `product_id` (requerido)                                           | Producto con precios escalonados       |
+| `create_cart`   | Crear/agregar al carrito | `conversation_id`, `items[]` (requeridos)                          | Carrito con items, precios y total     |
+| `update_cart`   | Modificar carrito        | `conversation_id`, `updates[]` (requeridos)                        | Carrito actualizado con total          |
 
 ---
 
-## 📊 Métricas Sugeridas
+## Precios Escalonados por Volumen
 
-Para monitoreo y mejora continua:
+El sistema aplica descuentos automaticos por volumen en cada operacion de carrito:
 
-- Tasa de conversión: Conversaciones → Carritos creados
-- Productos más consultados
-- Abandonos de carrito por falta de stock
-- Tiempo promedio hasta handoff humano
-- Tasa de handoff (qué % de conversaciones requieren humano)
+```
+qty < 100   → precio_50_u  (precio base)
+qty >= 100  → precio_100_u (descuento mediano)
+qty >= 200  → precio_200_u (mejor precio)
+```
+
+**Ejemplo practico:**
+
+- 50 camisetas a $5.000 c/u = $250.000
+- 100 camisetas a $4.500 c/u = $450.000 (10% descuento)
+- 200 camisetas a $4.000 c/u = $800.000 (20% descuento)
+
+El precio se recalcula cada vez que se modifica la cantidad en el carrito.
 
 ---
 
-## 🚀 Próximos Pasos
+## Consideraciones de Seguridad
 
-1. ✅ Implementar esquema de base de datos (D1)
-2. ✅ Desarrollar cada herramienta MCP como función TypeScript
-3. ⏳ Configurar servidor MCP en Cloudflare Worker
-4. ⏳ Integrar con Laburen Platform
-5. ⏳ Testing E2E en WhatsApp real
+1. **Validacion de Stock**: Siempre verificar disponibilidad antes de agregar items (solo en incrementos para update)
+2. **Aislamiento por Conversacion**: Cada `conversation_id` tiene su propio carrito (UNIQUE constraint)
+3. **Prepared Statements**: Todos los queries usan placeholders (`?`) contra SQL injection
+4. **UPSERT Atomico**: `INSERT...ON CONFLICT` evita race conditions en creacion de carritos
+5. **Error Handling**: Respuestas descriptivas con codigos de error estandar, sin exponer detalles de DB
+6. **Validacion Zod**: Tipos validados en la capa MCP SDK antes de llegar al tool
+
+---
+
+## Estructura del Proyecto
+
+```
+src/
+├── index.ts                  → Entry point: McpAgent (Durable Object) + routing
+├── types.ts                  → Interfaces TypeScript (Env, DB types, tool args, responses)
+├── db/
+│   └── schema.sql            → Esquema D1 (products, carts, cart_items + indices)
+├── tools/
+│   ├── list-products.ts      → Busqueda con filtros dinamicos
+│   ├── get-product.ts        → Detalle con precios escalonados
+│   ├── create-cart.ts        → UPSERT carrito + items + validacion stock
+│   └── update-cart.ts        → Modificar/eliminar items + validacion selectiva
+└── utils/
+    ├── response.ts           → Helpers de respuesta (success/error/MCP format)
+    └── pricing.ts            → Calculo de precios escalonados por volumen
+```

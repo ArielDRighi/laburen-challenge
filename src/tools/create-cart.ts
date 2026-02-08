@@ -71,7 +71,42 @@ export async function createCart(args: CreateCartArgs, env: Env): Promise<APIRes
       productMap.set(product.id, product);
     }
 
-    // Validar disponibilidad y stock
+    // Paso 1b: Crear o recuperar carrito primero (para validar stock acumulado)
+    const upsertCartSqlEarly = `
+      INSERT INTO carts (conversation_id, created_at, updated_at)
+      VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (conversation_id)
+      DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+      RETURNING id
+    `;
+
+    const cartResultEarly = await env.DB.prepare(upsertCartSqlEarly).bind(conversationId).first<{ id: number }>();
+    const cartId = cartResultEarly?.id;
+
+    if (!cartId) {
+      return errorResponse("database_error", "Error al crear o recuperar el carrito.");
+    }
+
+    console.log(`[create_cart] Cart ID: ${cartId}`);
+
+    // Paso 1c: Obtener cantidades actuales en el carrito para validación de stock acumulado
+    const currentItemsIds = items.map((item) => item.product_id);
+    const currentItemsPlaceholders = currentItemsIds.map(() => "?").join(",");
+    const getCurrentQtySql = `
+      SELECT product_id, qty
+      FROM cart_items
+      WHERE cart_id = ? AND product_id IN (${currentItemsPlaceholders})
+    `;
+
+    const currentQtyResult = await env.DB.prepare(getCurrentQtySql)
+      .bind(cartId, ...currentItemsIds)
+      .all();
+    const currentQtyMap = new Map<number, number>();
+    for (const row of (currentQtyResult.results as unknown as { product_id: number; qty: number }[]) || []) {
+      currentQtyMap.set(row.product_id, row.qty);
+    }
+
+    // Validar disponibilidad y stock (considerando cantidad acumulada)
     for (const item of items) {
       const product = productMap.get(item.product_id);
 
@@ -89,36 +124,28 @@ export async function createCart(args: CreateCartArgs, env: Env): Promise<APIRes
         );
       }
 
-      if (item.qty > product.cantidad_disponible) {
+      // Validar stock acumulado: cantidad actual en carrito + cantidad nueva
+      const currentQty = currentQtyMap.get(item.product_id) || 0;
+      const totalQty = currentQty + item.qty;
+
+      if (totalQty > product.cantidad_disponible) {
         return errorResponse(
           "insufficient_stock",
-          `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' solo tiene ${product.cantidad_disponible} unidades disponibles. Solicitaste ${item.qty}.`,
-          { product_id: item.product_id, available: product.cantidad_disponible, requested: item.qty }
+          `El producto '${product.tipo_prenda} ${product.talla} ${product.color}' solo tiene ${product.cantidad_disponible} unidades disponibles. Ya tienes ${currentQty} en el carrito y quieres agregar ${item.qty} más (total: ${totalQty}).`,
+          {
+            product_id: item.product_id,
+            available: product.cantidad_disponible,
+            current_in_cart: currentQty,
+            requested: item.qty,
+            total_would_be: totalQty,
+          }
         );
       }
     }
 
-    console.log(`[create_cart] Validaciones exitosas`);
+    console.log(`[create_cart] Validaciones exitosas (stock acumulado verificado)`);
 
-    // Paso 2: Crear o recuperar carrito (UPSERT)
-    const upsertCartSql = `
-      INSERT INTO carts (conversation_id, created_at, updated_at)
-      VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (conversation_id)
-      DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-      RETURNING id
-    `;
-
-    const cartResult = await env.DB.prepare(upsertCartSql).bind(conversationId).first<{ id: number }>();
-    const cartId = cartResult?.id;
-
-    if (!cartId) {
-      return errorResponse("database_error", "Error al crear o recuperar el carrito.");
-    }
-
-    console.log(`[create_cart] Cart ID: ${cartId}`);
-
-    // Paso 3: Insertar items (UPSERT - sumar cantidades)
+    // Paso 2: Insertar/actualizar items (UPSERT - sumar cantidades)
     for (const item of items) {
       const upsertItemSql = `
         INSERT INTO cart_items (cart_id, product_id, qty)
@@ -132,7 +159,7 @@ export async function createCart(args: CreateCartArgs, env: Env): Promise<APIRes
 
     console.log(`[create_cart] Items agregados`);
 
-    // Paso 4: Obtener carrito completo con totales
+    // Paso 3: Obtener carrito completo con totales
     const getCartSql = `
       SELECT
         ci.product_id,
