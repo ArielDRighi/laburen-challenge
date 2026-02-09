@@ -26,7 +26,7 @@ export class LaburenMCP extends McpAgent<Env> {
     version: "1.0.0",
   });
 
-  async init() {
+  async init(): Promise<void> {
     // ─── Tool: list_products ───────────────────────────────────
     this.server.tool(
       "list_products",
@@ -182,7 +182,7 @@ export class LaburenMCP extends McpAgent<Env> {
  * También soporta /sse para legacy SSE transport
  */
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
     const url = new URL(request.url);
 
     // Health check
