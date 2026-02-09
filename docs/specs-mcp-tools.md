@@ -738,6 +738,149 @@ WHERE ci.cart_id = ?;
 
 ---
 
+## 🏷️ Tool 5: `apply_labels`
+
+### Propósito
+
+Aplicar etiquetas CRM a una conversación en Chatwoot. Las etiquetas se acumulan — las nuevas se agregan sin eliminar las existentes.
+
+### Input Schema
+
+```typescript
+interface ApplyLabelsInput {
+  conversation_id: string; // ID de la conversación (requerido)
+  labels: string[]; // Array de etiquetas a aplicar (mínimo 1)
+}
+```
+
+**JSON Schema (para MCP):**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string",
+      "description": "ID de la conversación"
+    },
+    "labels": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Array de etiquetas a aplicar"
+    }
+  },
+  "required": ["conversation_id", "labels"]
+}
+```
+
+### Etiquetas Válidas
+
+```typescript
+const VALID_LABELS = [
+  "busqueda-productos",
+  "carrito-creado",
+  "carrito-editado",
+  "derivado-a-humano",
+  "motivo-consulta-envio",
+  "motivo-consulta-pago",
+  "motivo-solicitud-cliente",
+  "producto-camiseta",
+  "producto-chaqueta",
+  "producto-falda",
+  "producto-pantalon",
+  "producto-sudadera",
+];
+```
+
+### API Calls (Chatwoot)
+
+**Paso 1: GET etiquetas actuales**
+
+```
+GET /api/v1/accounts/{account_id}/conversations/{conversation_id}/labels
+Header: api_access_token: {token}
+```
+
+**Paso 2: Mergear etiquetas (sin duplicados)**
+
+```typescript
+const mergedLabels = [...new Set([...existingLabels, ...newLabels])];
+```
+
+**Paso 3: POST etiquetas mergeadas**
+
+```
+POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/labels
+Header: api_access_token: {token}, Content-Type: application/json
+Body: { "labels": ["busqueda-productos", "carrito-creado", ...] }
+```
+
+> ⚠️ La API de Chatwoot **sobreescribe** todas las etiquetas con las enviadas. Por eso se hace GET + merge + POST.
+
+### Parsing del conversation_id
+
+El `conversation_id` de Laburen tiene formato compuesto: `chatwoot_{agent_id}_{bot_id}_{account_id}_{conv_id}`. Se extrae el último segmento numérico como el ID real de conversación de Chatwoot.
+
+### Output Schema
+
+**Caso de éxito:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "applied_labels": ["busqueda-productos", "carrito-creado", "producto-camiseta"],
+    "message": "Etiquetas aplicadas correctamente."
+  }
+}
+```
+
+**Caso de error (etiquetas inválidas):**
+
+```json
+{
+  "success": false,
+  "error": "validation_error",
+  "message": "Etiquetas inválidas: etiqueta-falsa"
+}
+```
+
+**Caso de error (API Chatwoot):**
+
+```json
+{
+  "success": false,
+  "error": "chatwoot_api_error",
+  "message": "Error de Chatwoot API: 401"
+}
+```
+
+### Validaciones
+
+1. ✅ `conversation_id` no puede estar vacío
+2. ✅ `labels` debe tener al menos 1 elemento
+3. ✅ Todas las etiquetas deben pertenecer al set de `VALID_LABELS`
+4. ✅ Debe poder extraerse un ID numérico del `conversation_id`
+5. ✅ Variables de entorno de Chatwoot deben estar configuradas
+
+### Edge Cases
+
+- **Etiqueta ya existe en la conversación:** Se incluye en el merge, no se duplica
+- **API de Chatwoot caída:** Retorna error `chatwoot_api_error`
+- **conversation_id sin formato esperado:** Retorna error de validación
+- **GET falla pero POST podría funcionar:** Se procede con array vacío de existentes
+
+### Variables de Entorno
+
+| Variable             | Tipo   | Dónde se configura                  |
+|----------------------|--------|-------------------------------------|
+| `CHATWOOT_BASE_URL`  | string | `wrangler.toml` [vars]              |
+| `CHATWOOT_ACCOUNT_ID`| string | `wrangler.toml` [vars]              |
+| `CHATWOOT_API_TOKEN` | string | `wrangler secret put` (secreto)     |
+
+---
+
 ## 🔐 Consideraciones de Implementación
 
 ### Error Handling Global
@@ -763,7 +906,7 @@ interface MCPError {
 
 ### Transacciones
 
-Las operaciones que modifican datos (`create_cart`, `update_cart`) deben ejecutarse dentro de transacciones:
+Las operaciones que modifican datos (`create_cart`, `update_cart`) deben ejecutarse dentro de transacciones. `apply_labels` no usa transacciones de DB ya que se comunica con una API externa (Chatwoot).
 
 ```typescript
 await env.DB.batch([statement1, statement2, statement3]);

@@ -10,6 +10,11 @@ export interface Env {
   // Durable Object para MCP Agent (SSE/Streamable HTTP)
   MCP_OBJECT: DurableObjectNamespace;
 
+  // Chatwoot CRM integration
+  CHATWOOT_BASE_URL: string;
+  CHATWOOT_ACCOUNT_ID: string;
+  CHATWOOT_API_TOKEN: string;
+
   // Environment variables (opcional)
   ENVIRONMENT?: string;
 }
@@ -181,6 +186,14 @@ export interface UpdateCartArgs {
     product_id: number;
     qty: number;
   }>;
+}
+
+/**
+ * Arguments for apply_labels tool
+ */
+export interface ApplyLabelsArgs {
+  conversation_id: string;
+  labels: string[];
 }
 
 // ===================================

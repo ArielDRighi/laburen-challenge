@@ -10,11 +10,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { z } from "zod";
 
-import { Env, ListProductsArgs, GetProductArgs, CreateCartArgs, UpdateCartArgs } from "./types";
+import { Env, ListProductsArgs, GetProductArgs, CreateCartArgs, UpdateCartArgs, ApplyLabelsArgs } from "./types";
 import { listProducts } from "./tools/list-products";
 import { getProduct } from "./tools/get-product";
 import { createCart } from "./tools/create-cart";
 import { updateCart } from "./tools/update-cart";
+import { applyLabels } from "./tools/apply-labels";
 
 /**
  * MCP Agent con las herramientas de venta
@@ -153,6 +154,38 @@ export class LaburenMCP extends McpAgent<Env> {
       async (args) => {
         try {
           const result = await updateCart(args as UpdateCartArgs, this.env);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result) }],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: false,
+                  error: "internal_error",
+                  message: error instanceof Error ? error.message : "Error desconocido",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // ─── Tool: apply_labels ──────────────────────────────────
+    this.server.tool(
+      "apply_labels",
+      "Aplica etiquetas a la conversación actual en el CRM (Chatwoot). Las etiquetas se acumulan sin eliminar las existentes. Usá esta herramienta cuando el system prompt indique que debés aplicar una etiqueta según la interacción.",
+      {
+        conversation_id: z.string().describe("ID de la conversación"),
+        labels: z.array(z.string()).min(1).describe("Array de etiquetas a aplicar"),
+      },
+      async (args) => {
+        try {
+          const result = await applyLabels(args as ApplyLabelsArgs, this.env);
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
           };

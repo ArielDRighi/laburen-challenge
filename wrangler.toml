@@ -19,6 +19,11 @@ binding = "DB"
 database_name = "laburen-challenge-db"
 database_id = "91a940ad-ee7e-4fa8-b853-950e5e5880ae"
 
-# Variables de entorno (opcional)
-# [vars]
+# Variables de entorno
+[vars]
+CHATWOOT_BASE_URL = "https://chatwootchallenge.laburen.com"
+CHATWOOT_ACCOUNT_ID = "102"
 # ENVIRONMENT = "production"
+
+# Secrets (configurar con `wrangler secret put`):
+# CHATWOOT_API_TOKEN → User Access Token de Chatwoot

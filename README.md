@@ -9,6 +9,7 @@ Este proyecto implementa un agente de IA conversacional capaz de:
 - Listar productos disponibles
 - Mostrar detalles de productos
 - Crear y gestionar carritos de compra
+- Aplicar etiquetas CRM a conversaciones en Chatwoot
 - Integración con WhatsApp vía Chatwoot
 - Comunicación mediante Model Context Protocol (MCP)
 
@@ -31,7 +32,8 @@ laburen-challenge/
 │   │   ├── list-products.ts      # Tool para buscar productos
 │   │   ├── get-product.ts        # Tool para obtener detalles de producto
 │   │   ├── create-cart.ts        # Tool para crear/actualizar carritos
-│   │   └── update-cart.ts        # Tool para modificar/eliminar items
+│   │   ├── update-cart.ts        # Tool para modificar/eliminar items
+│   │   └── apply-labels.ts      # Tool para aplicar etiquetas CRM en Chatwoot
 │   ├── utils/
 │   │   ├── response.ts           # Helpers para respuestas HTTP y MCP
 │   │   └── pricing.ts            # Lógica de precios por volumen
@@ -143,7 +145,7 @@ Se configuraron 12 etiquetas en Chatwoot para trackear el estado de cada convers
 | Producto | `producto-pantalon` | Interés o compra de pantalones |
 | Producto | `producto-sudadera` | Interés o compra de sudaderas |
 
-El system prompt del agente incluye instrucciones (`<crm_tags>`) para que el LLM aplique las etiquetas correspondientes según la interacción. La aplicación efectiva de las etiquetas es gestionada por Laburen Platform a través de la API de Chatwoot. El MCP Server se enfoca en su responsabilidad: gestión de productos y carritos.
+El system prompt del agente incluye instrucciones (`<crm_tags>`) para que el LLM aplique las etiquetas correspondientes según la interacción. El MCP Server expone el tool `apply_labels` que aplica etiquetas directamente a las conversaciones de Chatwoot vía su API REST, acumulándolas sin eliminar las existentes.
 
 ## 📝 Documentación
 

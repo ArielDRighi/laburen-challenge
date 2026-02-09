@@ -86,9 +86,9 @@ Catalogo de indumentaria (100 productos importados desde XLSX).
 
 ## Herramientas MCP (Tools)
 
-El servidor expone **4 herramientas** que el LLM puede invocar:
+El servidor expone **5 herramientas** que el LLM puede invocar:
 
-> **Nota:** La derivación a humano (human handoff) NO se implementa como tool MCP. El LLM detecta cuándo derivar (usuario pide hablar con humano, consultas fuera del alcance del agente, etc.) y responde al cliente indicando que será atendido por un agente humano. Las etiquetas de derivación están configuradas en Chatwoot y definidas en el system prompt para que la plataforma Laburen las aplique según su integración con la API de Chatwoot.
+> **Nota:** La derivación a humano (human handoff) NO se implementa como tool MCP. El LLM detecta cuándo derivar (usuario pide hablar con humano, consultas fuera del alcance del agente, etc.) y responde al cliente indicando que será atendido por un agente humano. Las etiquetas se aplican vía el tool `apply_labels`, que se comunica directamente con la API de Chatwoot.
 
 ### 1. `list_products` — Buscar Productos
 
@@ -327,6 +327,50 @@ Todos los parametros son opcionales.
 
 ---
 
+### 5. `apply_labels` — Aplicar Etiquetas CRM
+
+**Descripcion:** Aplica etiquetas a la conversacion actual en Chatwoot. Las etiquetas se acumulan sin eliminar las existentes.
+
+**Parametros:**
+
+```typescript
+{
+  conversation_id: string;   // Requerido: ID de la conversacion
+  labels: string[];          // Requerido: Array de etiquetas a aplicar (minimo 1)
+}
+```
+
+**Etiquetas validas:** `busqueda-productos`, `carrito-creado`, `carrito-editado`, `derivado-a-humano`, `motivo-consulta-envio`, `motivo-consulta-pago`, `motivo-solicitud-cliente`, `producto-camiseta`, `producto-chaqueta`, `producto-falda`, `producto-pantalon`, `producto-sudadera`.
+
+**Respuesta exitosa:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "applied_labels": ["busqueda-productos", "carrito-creado", "producto-camiseta"],
+    "message": "Etiquetas aplicadas correctamente."
+  }
+}
+```
+
+**Logica:**
+
+1. Valida que las etiquetas sean del set permitido
+2. Extrae el `conversation_id` numerico de Chatwoot del formato compuesto de Laburen
+3. GET etiquetas actuales de la conversacion (API Chatwoot)
+4. Mergea las nuevas con las existentes (sin duplicar)
+5. POST el array completo (la API de Chatwoot sobreescribe, por eso se hace merge previo)
+
+**Errores:**
+
+| Codigo              | Causa                                    |
+| ------------------- | ---------------------------------------- |
+| `validation_error`  | Parametros invalidos o etiquetas invalidas |
+| `chatwoot_api_error`| Error al comunicarse con la API de Chatwoot |
+
+---
+
 ## Precios Escalonados por Volumen
 
 Los productos tienen 3 niveles de precio segun la cantidad del item en el carrito:
@@ -390,6 +434,7 @@ Todas las herramientas retornan un formato consistente:
 | `item_not_found`      | Item no esta en el carrito |
 | `product_unavailable` | Producto no disponible     |
 | `insufficient_stock`  | Stock insuficiente         |
+| `chatwoot_api_error`  | Error de API de Chatwoot   |
 | `database_error`      | Error de base de datos     |
 | `internal_error`      | Error interno del servidor |
 

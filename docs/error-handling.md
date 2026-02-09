@@ -151,8 +151,24 @@ La herramienta MCP solicitada no existe.
   "error": "tool_not_found",
   "message": "La herramienta 'tool_inexistente' no existe.",
   "details": {
-    "available_tools": ["list_products", "get_product", "create_cart", "update_cart"]
+    "available_tools": ["list_products", "get_product", "create_cart", "update_cart", "apply_labels"]
   }
+}
+```
+
+---
+
+### Errores de API Externa
+
+#### `chatwoot_api_error`
+
+Error al comunicarse con la API de Chatwoot (al aplicar etiquetas).
+
+```json
+{
+  "success": false,
+  "error": "chatwoot_api_error",
+  "message": "Error de Chatwoot API: 401"
 }
 ```
 
