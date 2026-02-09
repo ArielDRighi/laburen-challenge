@@ -88,7 +88,7 @@ Catalogo de indumentaria (100 productos importados desde XLSX).
 
 El servidor expone **4 herramientas** que el LLM puede invocar:
 
-> **Nota:** La derivación a humano (human handoff) NO se implementa como tool MCP. Es manejada directamente por el LLM a través del system prompt, que instruye cuándo dejar de responder y permitir que Chatwoot/Laburen cambien el estado de la conversación a "waiting_agent". El agente detecta triggers (usuario pide hablar con humano, consultas sobre devoluciones, frustración, etc.) y aplica etiquetas en Chatwoot para que un agente humano tome control.
+> **Nota:** La derivación a humano (human handoff) NO se implementa como tool MCP. El LLM detecta cuándo derivar (usuario pide hablar con humano, consultas fuera del alcance del agente, etc.) y responde al cliente indicando que será atendido por un agente humano. Las etiquetas de derivación están configuradas en Chatwoot y definidas en el system prompt para que la plataforma Laburen las aplique según su integración con la API de Chatwoot.
 
 ### 1. `list_products` — Buscar Productos
 
