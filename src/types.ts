@@ -189,6 +189,13 @@ export interface UpdateCartArgs {
 }
 
 /**
+ * Arguments for get_cart tool
+ */
+export interface GetCartArgs {
+  conversation_id: string;
+}
+
+/**
  * Arguments for apply_labels tool
  */
 export interface ApplyLabelsArgs {

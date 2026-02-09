@@ -86,7 +86,7 @@ Catalogo de indumentaria (100 productos importados desde XLSX).
 
 ## Herramientas MCP (Tools)
 
-El servidor expone **5 herramientas** que el LLM puede invocar:
+El servidor expone **6 herramientas** que el LLM puede invocar:
 
 > **Nota:** La derivación a humano (human handoff) NO se implementa como tool MCP. El LLM detecta cuándo derivar (usuario pide hablar con humano, consultas fuera del alcance del agente, etc.) y responde al cliente indicando que será atendido por un agente humano. Las etiquetas se aplican vía el tool `apply_labels`, que se comunica directamente con la API de Chatwoot.
 
@@ -327,7 +327,92 @@ Todos los parametros son opcionales.
 
 ---
 
-### 5. `apply_labels` — Aplicar Etiquetas CRM
+### 5. `get_cart` — Consultar Carrito
+
+**Descripcion:** Consulta el carrito de compra actual de una conversacion sin modificarlo. Retorna los items con cantidades, precios unitarios, subtotales y el total del carrito.
+
+**Parametros:**
+
+```typescript
+{
+  conversation_id: string; // Requerido: ID de la conversacion
+}
+```
+
+**Respuesta exitosa (carrito con items):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "cart_id": 42,
+    "items": [
+      {
+        "product_id": 72,
+        "tipo_prenda": "Camiseta",
+        "talla": "L",
+        "color": "Amarillo",
+        "precio_unitario": 1356,
+        "qty": 50,
+        "subtotal": 67800
+      }
+    ],
+    "total": 67800,
+    "item_count": 1,
+    "message": "Carrito con 1 producto(s)."
+  }
+}
+```
+
+**Respuesta exitosa (sin carrito):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "cart_id": null,
+    "items": [],
+    "total": 0,
+    "item_count": 0,
+    "message": "No hay carrito creado para esta conversación."
+  }
+}
+```
+
+**Respuesta exitosa (carrito vacio):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "cart_id": 42,
+    "items": [],
+    "total": 0,
+    "item_count": 0,
+    "message": "El carrito está vacío."
+  }
+}
+```
+
+**Logica:**
+
+1. Busca el carrito por `conversation_id`
+2. Si no existe carrito, retorna respuesta indicandolo
+3. Si existe pero no tiene items, retorna carrito vacio
+4. Obtiene items con JOIN a productos
+5. Calcula precios escalonados con `calculateUnitPrice`
+6. Retorna items con subtotales, total e `item_count`
+
+**Errores:**
+
+| Codigo             | Causa                          |
+| ------------------ | ------------------------------ |
+| `validation_error` | conversation_id faltante       |
+| `database_error`   | Error al consultar la DB       |
+
+---
+
+### 6. `apply_labels` — Aplicar Etiquetas CRM
 
 **Descripcion:** Aplica etiquetas a la conversacion actual en Chatwoot. Las etiquetas se acumulan sin eliminar las existentes.
 

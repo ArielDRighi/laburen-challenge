@@ -881,6 +881,142 @@ El `conversation_id` de Laburen tiene formato compuesto: `chatwoot_{agent_id}_{b
 
 ---
 
+## 🔎 Tool 6: `get_cart`
+
+### Propósito
+
+Consultar el carrito de compra actual de una conversación sin modificarlo. Permite al LLM responder preguntas como "¿qué tengo en el carrito?" sin depender de la memoria de la conversación.
+
+### Input Schema
+
+```typescript
+interface GetCartInput {
+  conversation_id: string; // ID de la conversación (requerido)
+}
+```
+
+**JSON Schema (para MCP):**
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string",
+      "description": "ID de la conversación"
+    }
+  },
+  "required": ["conversation_id"]
+}
+```
+
+### SQL Queries
+
+**Paso 1: Buscar carrito por conversation_id**
+
+```sql
+SELECT id FROM carts WHERE conversation_id = ?;
+```
+
+**Paso 2: Obtener items con datos del producto**
+
+```sql
+SELECT
+  ci.product_id,
+  ci.qty,
+  p.tipo_prenda,
+  p.talla,
+  p.color,
+  p.precio_50_u,
+  p.precio_100_u,
+  p.precio_200_u
+FROM cart_items ci
+JOIN products p ON ci.product_id = p.id
+WHERE ci.cart_id = ?;
+```
+
+### Output Schema
+
+**Caso de éxito (carrito con items):**
+
+```typescript
+interface GetCartOutput {
+  cart_id: number;
+  items: Array<{
+    product_id: number;
+    tipo_prenda: string;
+    talla: string;
+    color: string;
+    precio_unitario: number; // Calculado con descuento por volumen
+    qty: number;
+    subtotal: number; // precio_unitario * qty
+  }>;
+  total: number; // Suma de todos los subtotales
+  item_count: number; // Cantidad de items distintos
+  message: string;
+}
+```
+
+**Ejemplo de respuesta exitosa (con items):**
+
+```json
+{
+  "cart_id": 42,
+  "items": [
+    {
+      "product_id": 72,
+      "tipo_prenda": "Camiseta",
+      "talla": "L",
+      "color": "Amarillo",
+      "precio_unitario": 1356,
+      "qty": 50,
+      "subtotal": 67800
+    }
+  ],
+  "total": 67800,
+  "item_count": 1,
+  "message": "Carrito con 1 producto(s)."
+}
+```
+
+**Caso sin carrito:**
+
+```json
+{
+  "cart_id": null,
+  "items": [],
+  "total": 0,
+  "item_count": 0,
+  "message": "No hay carrito creado para esta conversación."
+}
+```
+
+**Caso carrito vacío:**
+
+```json
+{
+  "cart_id": 42,
+  "items": [],
+  "total": 0,
+  "item_count": 0,
+  "message": "El carrito está vacío."
+}
+```
+
+### Validaciones
+
+1. ✅ `conversation_id` no puede estar vacío
+2. ✅ No modifica datos — es una operación de solo lectura
+3. ✅ Calcula precios escalonados usando `calculateUnitPrice` (misma lógica que `create_cart` y `update_cart`)
+
+### Edge Cases
+
+- **Sin carrito para la conversación:** Retorna `cart_id: null` con mensaje informativo (no es error)
+- **Carrito existe pero vacío:** Retorna `cart_id` con `items: []`
+- **Productos eliminados de la DB:** El JOIN no retorna items huérfanos
+
+---
+
 ## 🔐 Consideraciones de Implementación
 
 ### Error Handling Global

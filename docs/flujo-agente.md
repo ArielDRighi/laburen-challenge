@@ -100,13 +100,14 @@ sequenceDiagram
 
 ## Endpoints MCP
 
-| Herramienta     | Proposito                | Input Principal                                                    | Output                                 |
-| --------------- | ------------------------ | ------------------------------------------------------------------ | -------------------------------------- |
-| `list_products` | Buscar productos         | `query`, `categoria`, `talla`, `color`, `limit` (todos opcionales) | Array de productos con stock y precios |
-| `get_product`   | Detalle de producto      | `product_id` (requerido)                                           | Producto con precios escalonados       |
-| `create_cart`   | Crear/agregar al carrito | `conversation_id`, `items[]` (requeridos)                          | Carrito con items, precios y total     |
-| `update_cart`   | Modificar carrito        | `conversation_id`, `updates[]` (requeridos)                        | Carrito actualizado con total          |
-| `apply_labels`  | Etiquetar conversacion   | `conversation_id`, `labels[]` (requeridos)                         | Labels aplicadas en Chatwoot           |
+| Herramienta     | Proposito                    | Input Principal                                                    | Output                                 |
+| --------------- | ---------------------------- | ------------------------------------------------------------------ | -------------------------------------- |
+| `list_products` | Buscar productos             | `query`, `categoria`, `talla`, `color`, `limit` (todos opcionales) | Array de productos con stock y precios |
+| `get_product`   | Detalle de producto          | `product_id` (requerido)                                           | Producto con precios escalonados       |
+| `create_cart`   | Crear/agregar al carrito     | `conversation_id`, `items[]` (requeridos)                          | Carrito con items, precios y total     |
+| `update_cart`   | Modificar carrito            | `conversation_id`, `updates[]` (requeridos)                        | Carrito actualizado con total          |
+| `get_cart`      | Consultar carrito existente  | `conversation_id` (requerido)                                      | Carrito con items, precios y total     |
+| `apply_labels`  | Etiquetar conversacion       | `conversation_id`, `labels[]` (requeridos)                         | Labels aplicadas en Chatwoot           |
 
 **URL de produccion:** `https://laburen-challenge-mcp.laburen-challenge.workers.dev/mcp`
 **Transporte:** Streamable HTTP + SSE (MCP SDK)

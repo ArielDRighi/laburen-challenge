@@ -33,6 +33,7 @@ laburen-challenge/
 │   │   ├── get-product.ts        # Tool para obtener detalles de producto
 │   │   ├── create-cart.ts        # Tool para crear/actualizar carritos
 │   │   ├── update-cart.ts        # Tool para modificar/eliminar items
+│   │   ├── get-cart.ts           # Tool para consultar carrito sin modificarlo
 │   │   └── apply-labels.ts      # Tool para aplicar etiquetas CRM en Chatwoot
 │   ├── utils/
 │   │   ├── response.ts           # Helpers para respuestas HTTP y MCP

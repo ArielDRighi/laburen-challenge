@@ -10,11 +10,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { z } from "zod";
 
-import { Env, ListProductsArgs, GetProductArgs, CreateCartArgs, UpdateCartArgs, ApplyLabelsArgs } from "./types";
+import { Env, ListProductsArgs, GetProductArgs, CreateCartArgs, UpdateCartArgs, GetCartArgs, ApplyLabelsArgs } from "./types";
 import { listProducts } from "./tools/list-products";
 import { getProduct } from "./tools/get-product";
 import { createCart } from "./tools/create-cart";
 import { updateCart } from "./tools/update-cart";
+import { getCart } from "./tools/get-cart";
 import { applyLabels } from "./tools/apply-labels";
 
 /**
@@ -154,6 +155,37 @@ export class LaburenMCP extends McpAgent<Env> {
       async (args) => {
         try {
           const result = await updateCart(args as UpdateCartArgs, this.env);
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify(result) }],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  success: false,
+                  error: "internal_error",
+                  message: error instanceof Error ? error.message : "Error desconocido",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // ─── Tool: get_cart ───────────────────────────────────────
+    this.server.tool(
+      "get_cart",
+      "Consulta el carrito de compra actual de una conversación. Retorna los items con cantidades, precios y total. Si no existe carrito, lo indica.",
+      {
+        conversation_id: z.string().describe("ID de la conversación"),
+      },
+      async (args) => {
+        try {
+          const result = await getCart(args as GetCartArgs, this.env);
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
           };

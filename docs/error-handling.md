@@ -151,7 +151,7 @@ La herramienta MCP solicitada no existe.
   "error": "tool_not_found",
   "message": "La herramienta 'tool_inexistente' no existe.",
   "details": {
-    "available_tools": ["list_products", "get_product", "create_cart", "update_cart", "apply_labels"]
+    "available_tools": ["list_products", "get_product", "create_cart", "update_cart", "get_cart", "apply_labels"]
   }
 }
 ```

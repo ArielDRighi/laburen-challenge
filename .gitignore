@@ -13,7 +13,8 @@ dist/
 .env.local
 .dev.vars
 
-# IDE
+# IDE / AI tools
+.claude/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
