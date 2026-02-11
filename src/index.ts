@@ -32,14 +32,14 @@ export class LaburenMCP extends McpAgent<Env> {
     // ─── Tool: list_products ───────────────────────────────────
     this.server.tool(
       "list_products",
-      "Busca y lista productos disponibles en el catálogo. Puede filtrar por texto, categoría, talla y color.",
+      "Busca y lista productos disponibles en el catálogo. IMPORTANTE: Usá los parámetros dedicados para filtrar. Usá 'talla' para filtrar por talla (S/M/L/XL/XXL), 'color' para filtrar por color, y 'query' SOLO para tipo de prenda (ej: pantalon, camiseta, falda). NO metas la talla ni el color dentro de query.",
       {
         query: z
           .string()
           .optional()
-          .describe("Texto para buscar en tipo de prenda, color o descripción (búsqueda case-insensitive)"),
+          .describe("Tipo de prenda a buscar (ej: pantalon, camiseta, falda, sudadera, chaqueta, camisa). NO incluir talla ni color aquí."),
         categoria: z.enum(["Deportivo", "Casual", "Formal"]).optional().describe("Filtrar por categoría específica"),
-        talla: z.enum(["S", "M", "L", "XL", "XXL"]).optional().describe("Filtrar por talla específica"),
+        talla: z.enum(["S", "M", "L", "XL", "XXL"]).optional().describe("Filtrar por talla específica. SIEMPRE usar este parámetro cuando el usuario mencione una talla."),
         color: z.string().optional().describe("Filtrar por color específico"),
         limit: z.number().optional().describe("Cantidad máxima de resultados (default: 10, max: 50)"),
       },
